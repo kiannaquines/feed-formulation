@@ -309,91 +309,332 @@ def deactivate_user_api_key(key_name: str, current_user: dict = Depends(get_curr
         conn.commit()
         return {"message": f"API key '{key_name}' has been deactivated"}
 
-@app.get("/feed/formulate")
-def feed_formulator(auth_user: dict = Depends(verify_api_key_token)):
-    """Feed formulation endpoint (protected by API key or JWT token)"""
+@app.get("/api/feed/formulate")
+def feed_formulator(
+    formulation_request: FeedFormulationRequest,
+    auth_user: dict = Depends(verify_api_key_token)
+):
+    """Dynamic feed formulation endpoint (protected by API key or JWT token)"""
     
     from scipy.optimize import linprog
 
-    ingredients = [
-        'Corn', 'Soybean Meal', 'Skimmilk', 'Rice bran D1', 'Fish Meal',
-        'Coconut Oil', 'Limestone', 'Monodical Phosphate', 'Vitamin Premix',
-        'Choline', 'Salt', 'L-lysine', 'DL-Methionine', 'Antioxidant', 'Azolla'
-    ]
+    if not formulation_request.ingredients:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one ingredient must be provided"
+        )
 
-    c = np.array([75, 100, 250, 80, 150, 50, 6.3, 80, 185, 640,
-                  28, 1279, 120, 200, 350])
-
-    A_nutrients = np.array([
-        [7.8, 43.1, 33.5, 12.4, 58.7, 0, 0, 0, 0, 0, 0, 74, 58, 0, 21.3],
-        [3.3, 2.24, 2.51, 2.4, 2.8, 8.6, 0, 0, 0, 0, 0, 3.625, 3.6, 0, 1.0513],
-        [0.07, 0.45, 1.25, 0.07, 4.68, 0, 38, 16, 0, 0, 0, 0, 0, 0, 0.45],
-        [0.06, 0.19, 0.95, 0.23, 2.86, 0, 0, 18, 0, 0, 0, 0, 0, 0, 0.35]
+    ingredients = [ing.name for ing in formulation_request.ingredients]
+    costs = np.array([ing.cost_per_kg for ing in formulation_request.ingredients])
+    
+    nutrient_matrix = np.array([
+        [ing.protein_percent for ing in formulation_request.ingredients],
+        [ing.energy_me for ing in formulation_request.ingredients],
+        [ing.calcium_percent for ing in formulation_request.ingredients],
+        [ing.phosphorus_percent for ing in formulation_request.ingredients]
     ])
-
-    nutrient_req = np.array([22.3, 2.9, 0.87, 0.48])
-
-    ingredient_min = np.array([
-        0.45, 0.25, 0.02, 0.05, 0.01, 0, 0, 0, 0.0025,
-        0.0025, 0.0025, 0.0025, 0, 0.0025, 0.010
+    
+    nutrient_req = np.array([
+        formulation_request.nutrient_requirements.protein_percent,
+        formulation_request.nutrient_requirements.energy_me,
+        formulation_request.nutrient_requirements.calcium_percent,
+        formulation_request.nutrient_requirements.phosphorus_percent
     ])
-
-    ingredient_max = np.array([
-        0.70, 0.30, 1, 0.5, 0.5, 1, 1, 1, 0.0025,
-        0.0025, 0.0025, 0.0025, 1, 0.0025, 0.010
-    ])
-
+    
+    ingredient_min = np.array([ing.min_percentage for ing in formulation_request.ingredients])
+    ingredient_max = np.array([ing.max_percentage for ing in formulation_request.ingredients])
+    
+    if any(ingredient_min < 0) or any(ingredient_max > 1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ingredient percentages must be between 0 and 1"
+        )
+    
+    if any(ingredient_min > ingredient_max):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Minimum percentage cannot be greater than maximum percentage"
+        )
+    
     sum_constraint = np.ones((1, len(ingredients)))
-    A_eq = np.vstack((sum_constraint, A_nutrients))
+    A_eq = np.vstack((sum_constraint, nutrient_matrix))
     b_eq = np.hstack(([1.0], nutrient_req))
     bounds = list(zip(ingredient_min, ingredient_max))
 
-    result = linprog(c, A_eq=A_eq, b_eq=b_eq, bounds=bounds, method='highs')
+    try:
+        result = linprog(
+            costs, 
+            A_eq=A_eq, 
+            b_eq=b_eq, 
+            bounds=bounds, 
+            method=formulation_request.optimization_method
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Optimization failed: {str(e)}"
+        )
 
     base_response = {
         "authenticated_user": auth_user['username'],
-        "user_id": auth_user['id']
+        "user_id": auth_user['id'],
+        "formulation_inputs": {
+            "total_ingredients": len(ingredients),
+            "optimization_method": formulation_request.optimization_method,
+            "ingredients": [
+                {
+                    "name": ing.name,
+                    "cost_per_kg": ing.cost_per_kg,
+                    "min_percentage": ing.min_percentage * 100,
+                    "max_percentage": ing.max_percentage * 100
+                }
+                for ing in formulation_request.ingredients
+            ],
+            "nutrient_targets": {
+                "protein_percent": formulation_request.nutrient_requirements.protein_percent,
+                "energy_me": formulation_request.nutrient_requirements.energy_me,
+                "calcium_percent": formulation_request.nutrient_requirements.calcium_percent,
+                "phosphorus_percent": formulation_request.nutrient_requirements.phosphorus_percent
+            }
+        }
     }
 
     if result.success:
         ingredient_percentages = result.x * 100
-        nutrient_values = A_nutrients @ result.x
-        costs = c * result.x
+        nutrient_values = nutrient_matrix @ result.x
+        costs_breakdown = costs * result.x
 
         base_response.update({
             "status": "success",
             "message": "Optimal feed formulation found.",
-            "total_cost_per_kg": round(result.fun, 2),
-            "ingredient_composition_percent": {
-                ingredients[i]: round(ingredient_percentages[i], 4)
-                for i in range(len(ingredients))
-                if ingredient_percentages[i] > 0
+            "optimization_details": {
+                "solver_status": result.message,
+                "iterations": getattr(result, 'nit', 'N/A'),
+                "total_cost_per_kg": round(result.fun, 4)
             },
+            "ingredient_composition": [
+                {
+                    "name": ingredients[i],
+                    "percentage": round(ingredient_percentages[i], 4),
+                    "cost_contribution": round(costs_breakdown[i], 4),
+                    "included": ingredient_percentages[i] > 0.001
+                }
+                for i in range(len(ingredients))
+            ],
             "nutrient_achievement": {
-                "Protein (% CP)": round(nutrient_values[0], 4),
-                "Energy (ME)": round(nutrient_values[1], 4),
-                "Calcium (% Ca)": round(nutrient_values[2], 4),
-                "Phosphorus (% P)": round(nutrient_values[3], 4),
+                "protein_percent": {
+                    "achieved": round(nutrient_values[0], 4),
+                    "required": round(formulation_request.nutrient_requirements.protein_percent, 4),
+                    "difference": round(nutrient_values[0] - formulation_request.nutrient_requirements.protein_percent, 4)
+                },
+                "energy_me": {
+                    "achieved": round(nutrient_values[1], 4),
+                    "required": round(formulation_request.nutrient_requirements.energy_me, 4),
+                    "difference": round(nutrient_values[1] - formulation_request.nutrient_requirements.energy_me, 4)
+                },
+                "calcium_percent": {
+                    "achieved": round(nutrient_values[2], 4),
+                    "required": round(formulation_request.nutrient_requirements.calcium_percent, 4),
+                    "difference": round(nutrient_values[2] - formulation_request.nutrient_requirements.calcium_percent, 4)
+                },
+                "phosphorus_percent": {
+                    "achieved": round(nutrient_values[3], 4),
+                    "required": round(formulation_request.nutrient_requirements.phosphorus_percent, 4),
+                    "difference": round(nutrient_values[3] - formulation_request.nutrient_requirements.phosphorus_percent, 4)
+                }
             },
-            "nutrient_requirements": {
-                "Protein (% CP)": round(nutrient_req[0], 4),
-                "Energy (ME)": round(nutrient_req[1], 4),
-                "Calcium (% Ca)": round(nutrient_req[2], 4),
-                "Phosphorus (% P)": round(nutrient_req[3], 4),
-            },
-            "cost_breakdown_per_ingredient": {
-                ingredients[i]: round(costs[i], 4)
-                for i in range(len(ingredients))
-                if costs[i] > 0
-            },
-            "total_ingredient_percentage": round(sum(result.x) * 100, 6)
+            "summary": {
+                "total_ingredient_percentage": round(sum(result.x) * 100, 6),
+                "active_ingredients_count": sum(1 for x in ingredient_percentages if x > 0.001),
+                "cost_per_kg": round(result.fun, 4),
+                "formulation_feasible": True
+            }
         })
     else:
         base_response.update({
             "status": "failure",
             "message": "No optimal solution found.",
-            "solver_status_code": result.status,
-            "solver_message": result.message
+            "error_details": {
+                "solver_status_code": result.status,
+                "solver_message": result.message,
+                "possible_causes": [
+                    "Nutrient requirements may be impossible to meet with given ingredients",
+                    "Ingredient constraints may be too restrictive",
+                    "Cost optimization may have no feasible solution"
+                ],
+                "suggestions": [
+                    "Review nutrient requirements and ensure they are achievable",
+                    "Check ingredient min/max percentage constraints",
+                    "Consider adding more ingredient options",
+                    "Verify ingredient nutrient compositions are correct"
+                ]
+            },
+            "formulation_feasible": False
+        })
+
+    return base_response
+
+@app.post("/feed/formulate")
+def feed_formulator(
+    formulation_request: FeedFormulationRequest,
+    auth_user: dict = Depends(verify_api_key_token)
+):
+    """Dynamic feed formulation endpoint (protected by API key)"""
+    
+    from scipy.optimize import linprog
+
+    if not formulation_request.ingredients:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="At least one ingredient must be provided"
+        )
+
+    ingredients = [ing.name for ing in formulation_request.ingredients]
+    costs = np.array([ing.cost_per_kg for ing in formulation_request.ingredients])
+    
+    nutrient_matrix = np.array([
+        [ing.protein_percent for ing in formulation_request.ingredients],
+        [ing.energy_me for ing in formulation_request.ingredients],
+        [ing.calcium_percent for ing in formulation_request.ingredients],
+        [ing.phosphorus_percent for ing in formulation_request.ingredients]
+    ])
+    
+    nutrient_req = np.array([
+        formulation_request.nutrient_requirements.protein_percent,
+        formulation_request.nutrient_requirements.energy_me,
+        formulation_request.nutrient_requirements.calcium_percent,
+        formulation_request.nutrient_requirements.phosphorus_percent
+    ])
+    
+    ingredient_min = np.array([ing.min_percentage for ing in formulation_request.ingredients])
+    ingredient_max = np.array([ing.max_percentage for ing in formulation_request.ingredients])
+    
+    if any(ingredient_min < 0) or any(ingredient_max > 1):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Ingredient percentages must be between 0 and 1"
+        )
+    
+    if any(ingredient_min > ingredient_max):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Minimum percentage cannot be greater than maximum percentage"
+        )
+    
+    sum_constraint = np.ones((1, len(ingredients)))
+    A_eq = np.vstack((sum_constraint, nutrient_matrix))
+    b_eq = np.hstack(([1.0], nutrient_req))
+    bounds = list(zip(ingredient_min, ingredient_max))
+
+    try:
+        result = linprog(
+            costs, 
+            A_eq=A_eq, 
+            b_eq=b_eq, 
+            bounds=bounds, 
+            method=formulation_request.optimization_method
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Optimization failed: {str(e)}"
+        )
+
+    base_response = {
+        "authenticated_user": auth_user['username'],
+        "user_id": auth_user['id'],
+        "formulation_inputs": {
+            "total_ingredients": len(ingredients),
+            "optimization_method": formulation_request.optimization_method,
+            "ingredients": [
+                {
+                    "name": ing.name,
+                    "cost_per_kg": ing.cost_per_kg,
+                    "min_percentage": ing.min_percentage * 100,
+                    "max_percentage": ing.max_percentage * 100
+                }
+                for ing in formulation_request.ingredients
+            ],
+            "nutrient_targets": {
+                "protein_percent": formulation_request.nutrient_requirements.protein_percent,
+                "energy_me": formulation_request.nutrient_requirements.energy_me,
+                "calcium_percent": formulation_request.nutrient_requirements.calcium_percent,
+                "phosphorus_percent": formulation_request.nutrient_requirements.phosphorus_percent
+            }
+        }
+    }
+
+    if result.success:
+        ingredient_percentages = result.x * 100
+        nutrient_values = nutrient_matrix @ result.x
+        costs_breakdown = costs * result.x
+
+        base_response.update({
+            "status": "success",
+            "message": "Optimal feed formulation found.",
+            "optimization_details": {
+                "solver_status": result.message,
+                "iterations": getattr(result, 'nit', 'N/A'),
+                "total_cost_per_kg": round(result.fun, 4)
+            },
+            "ingredient_composition": [
+                {
+                    "name": ingredients[i],
+                    "percentage": round(ingredient_percentages[i], 4),
+                    "cost_contribution": round(costs_breakdown[i], 4),
+                    "included": ingredient_percentages[i] > 0.001
+                }
+                for i in range(len(ingredients))
+            ],
+            "nutrient_achievement": {
+                "protein_percent": {
+                    "achieved": round(nutrient_values[0], 4),
+                    "required": round(formulation_request.nutrient_requirements.protein_percent, 4),
+                    "difference": round(nutrient_values[0] - formulation_request.nutrient_requirements.protein_percent, 4)
+                },
+                "energy_me": {
+                    "achieved": round(nutrient_values[1], 4),
+                    "required": round(formulation_request.nutrient_requirements.energy_me, 4),
+                    "difference": round(nutrient_values[1] - formulation_request.nutrient_requirements.energy_me, 4)
+                },
+                "calcium_percent": {
+                    "achieved": round(nutrient_values[2], 4),
+                    "required": round(formulation_request.nutrient_requirements.calcium_percent, 4),
+                    "difference": round(nutrient_values[2] - formulation_request.nutrient_requirements.calcium_percent, 4)
+                },
+                "phosphorus_percent": {
+                    "achieved": round(nutrient_values[3], 4),
+                    "required": round(formulation_request.nutrient_requirements.phosphorus_percent, 4),
+                    "difference": round(nutrient_values[3] - formulation_request.nutrient_requirements.phosphorus_percent, 4)
+                }
+            },
+            "summary": {
+                "total_ingredient_percentage": round(sum(result.x) * 100, 6),
+                "active_ingredients_count": sum(1 for x in ingredient_percentages if x > 0.001),
+                "cost_per_kg": round(result.fun, 4),
+                "formulation_feasible": True
+            }
+        })
+    else:
+        base_response.update({
+            "status": "failure",
+            "message": "No optimal solution found.",
+            "error_details": {
+                "solver_status_code": result.status,
+                "solver_message": result.message,
+                "possible_causes": [
+                    "Nutrient requirements may be impossible to meet with given ingredients",
+                    "Ingredient constraints may be too restrictive",
+                    "Cost optimization may have no feasible solution"
+                ],
+                "suggestions": [
+                    "Review nutrient requirements and ensure they are achievable",
+                    "Check ingredient min/max percentage constraints",
+                    "Consider adding more ingredient options",
+                    "Verify ingredient nutrient compositions are correct"
+                ]
+            },
+            "formulation_feasible": False
         })
 
     return base_response
