@@ -1,5 +1,5 @@
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float
 from datetime import datetime
 
 Base = declarative_base()
@@ -29,6 +29,26 @@ class OTPSession(Base):
     is_verified = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
-    
+
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     user = relationship("User", back_populates="otp_sessions")
+
+class Ingredient(Base):
+    __tablename__ = "ingredients"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, unique=True, index=True)
+    price = Column(Float, nullable=False)
+    crude_protein = Column(Float, nullable=False)
+    crude_fat = Column(Float, nullable=False)
+    crude_fiber = Column(Float, nullable=False)
+    metabolized_energy = Column(Float, nullable=False)
+    calcium = Column(Float, nullable=False)
+    total_phosphorus = Column(Float, nullable=False)
+    avail_phosphorus = Column(Float, nullable=False)
+    lysine = Column(Float, nullable=False)
+    methionine = Column(Float, nullable=False)
+    m_c = Column(Float, nullable=False)
+    is_available = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+

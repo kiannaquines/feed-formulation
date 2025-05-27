@@ -1,5 +1,6 @@
 from pydantic import BaseModel, Field, EmailStr
 from typing import List
+from datetime import datetime
 
 class UserRegister(BaseModel):
     username: str
@@ -87,3 +88,28 @@ class FeedFormulationRequest(BaseModel):
 
 class FeedFormulationPreset(BaseModel):
     preset_name: str = "custom"
+
+class IngredientBase(BaseModel):
+    name: str
+    price: float
+    crude_protein: float
+    crude_fat: float
+    crude_fiber: float
+    metabolized_energy: float
+    calcium: float
+    total_phosphorus: float
+    avail_phosphorus: float
+    lysine: float
+    methionine: float
+    m_c: float
+    is_available: bool = True
+
+class IngredientCreate(IngredientBase):
+    pass
+
+class IngredientResponse(IngredientBase):
+    id: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
