@@ -1,13 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from db.database import *
-from models.models import *
+from schema.schema import *
 
 from routes.authentication_routes import auth_router
 from routes.chicken_feed_formulation_routes import chicken_feed_formulation_router
 from routes.root_routes import root_router
-
-init_database()
 
 app = FastAPI(
     title="Feed Formulation API with Authentication",

@@ -1,119 +1,123 @@
-from fastapi import APIRouter, HTTPException, status
-from core.config import *
-from core.otp import *
-from db.database import *
-from models.models import *
-from core.authentication import *
+from fastapi import APIRouter, HTTPException, status, Depends
+from sqlalchemy.orm import Session
+from db.database import SessionLocal, get_db
+from models.models import User, OTPSession
+from schema.schema import UserRegister, UserLogin, OTPVerification
+from core.authentication import hash_password, verify_password, create_jwt_token
+from core.otp import generate_otp, verify_otp
+from core.authentication import generate_otp_secret
+from datetime import datetime, timedelta
+import secrets
 
 auth_router = APIRouter(tags=["Authentication"])
 
 @auth_router.post("/auth/register")
-def register_user(user_data: UserRegister):
+def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
     """Register a new user"""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT id FROM users WHERE username = ? OR email = ?", 
-                      (user_data.username, user_data.email))
-        if cursor.fetchone():
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Username or email already registered"
-            )
-        
-        password_hash = hash_password(user_data.password)
-        otp_secret = generate_otp_secret()
-        
-        cursor.execute('''
-            INSERT INTO users (username, email, password_hash, otp_secret)
-            VALUES (?, ?, ?, ?)
-        ''', (user_data.username, user_data.email, password_hash, otp_secret))
-        
-        user_id = cursor.lastrowid
-        conn.commit()
-        
-        return {
-            "message": "User registered successfully",
-            "user_id": user_id,
-            "otp_secret": otp_secret,
-            "note": "Save your OTP secret securely. You'll need it for login verification."
-        }
+    existing_user = db.query(User).filter(
+        (User.username == user_data.username) | (User.email == user_data.email)
+    ).first()
+
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Username or email already registered"
+        )
+
+    password_hash = hash_password(user_data.password)
+    otp_secret = generate_otp_secret()
+
+    user = User(
+        username=user_data.username,
+        email=user_data.email,
+        password_hash=password_hash,
+        otp_secret=otp_secret
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "message": "User registered successfully",
+        "user_id": user.id,
+        "otp_secret": otp_secret,
+        "note": "Save your OTP secret securely. You'll need it for login verification."
+    }
 
 @auth_router.post("/auth/login")
-def login_user(login_data: UserLogin):
+def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
     """Login user and initiate OTP verification"""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE username = ? AND is_active = TRUE", 
-                      (login_data.username,))
-        user = cursor.fetchone()
-        
-        if not user or not verify_password(login_data.password, user['password_hash']):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid username or password"
-            )
-        
-        session_token = secrets.token_urlsafe(32)
-        expires_at = datetime.utcnow() + timedelta(minutes=10)
-        
-        cursor.execute('''
-            INSERT INTO otp_sessions (user_id, session_token, expires_at)
-            VALUES (?, ?, ?)
-        ''', (user['id'], session_token, expires_at))
-        conn.commit()
-        
-        current_otp = generate_otp(user['otp_secret'])
-        
-        return {
-            "message": "Login successful. Please verify OTP to complete authentication.",
-            "session_token": session_token,
-            "current_otp": current_otp,
-            "expires_in_minutes": 10,
-            "note": "Use the OTP with your session token to get your JWT token"
-        }
+    user = db.query(User).filter(
+        User.username == login_data.username,
+        User.is_active == True
+    ).first()
+
+    if not user or not verify_password(login_data.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid username or password"
+        )
+
+    session_token = secrets.token_urlsafe(32)
+    expires_at = datetime.utcnow() + timedelta(minutes=10)
+
+    otp_session = OTPSession(
+        user_id=user.id,
+        session_token=session_token,
+        expires_at=expires_at,
+        is_verified=False
+    )
+
+    db.add(otp_session)
+    db.commit()
+
+    current_otp = generate_otp(user.otp_secret)
+
+    return {
+        "message": "Login successful. Please verify OTP to complete authentication.",
+        "session_token": session_token,
+        "current_otp": current_otp,
+        "expires_in_minutes": 10,
+        "note": "Use the OTP with your session token to get your JWT token"
+    }
 
 @auth_router.post("/auth/verify-otp")
-def verify_user_otp(otp_data: OTPVerification):
+def verify_user_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
     """Verify OTP and return JWT token"""
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        
-        cursor.execute('''
-            SELECT os.*, u.* FROM otp_sessions os
-            JOIN users u ON os.user_id = u.id
-            WHERE os.session_token = ? AND os.expires_at > ? AND os.is_verified = FALSE
-        ''', (otp_data.session_token, datetime.utcnow()))
-        
-        session = cursor.fetchone()
-        if not session:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Invalid or expired session token"
-            )
-        
-        if not verify_otp(session['otp_secret'], otp_data.otp_code):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid OTP code"
-            )
-        
-        cursor.execute("UPDATE otp_sessions SET is_verified = TRUE WHERE session_token = ?", 
-                      (otp_data.session_token,))
-        cursor.execute("UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?", 
-                      (session['user_id'],))
-        conn.commit()
-        
-        jwt_token = create_jwt_token(session['user_id'], session['username'])
-        
-        return {
-            "message": "OTP verified successfully",
-            "access_token": jwt_token,
-            "token_type": "bearer",
-            "expires_in_hours": JWT_EXPIRATION_HOURS,
-            "user": {
-                "id": session['user_id'],
-                "username": session['username'],
-                "email": session['email']
-            }
+    session = db.query(OTPSession).join(User).filter(
+        OTPSession.session_token == otp_data.session_token,
+        OTPSession.expires_at > datetime.utcnow(),
+        OTPSession.is_verified == False
+    ).first()
+
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired session token"
+        )
+
+    user = db.query(User).filter(User.id == session.user_id).first()
+    if not user or not verify_otp(user.otp_secret, otp_data.otp_code):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid OTP code"
+        )
+
+    session.is_verified = True
+    user.last_login_at = datetime.utcnow()
+
+    db.commit()
+
+    jwt_token = create_jwt_token(user.id, user.username)
+
+    return {
+        "message": "OTP verified successfully",
+        "access_token": jwt_token,
+        "token_type": "bearer",
+        "expires_in_hours": 12,
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email
         }
+    }

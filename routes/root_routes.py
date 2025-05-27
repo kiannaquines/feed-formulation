@@ -21,7 +21,7 @@ def index_page(request: Request):
                 "register": "POST /auth/register",
                 "login": "POST /auth/login",
                 "verify_otp": "POST /auth/verify-otp",
-                "create_api_key": "POST /auth/api-keys"
+                "feed_formulation": "POST /chicken/feed/formulate",
             }
         }
     }

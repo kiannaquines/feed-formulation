@@ -14,24 +14,12 @@ def init_database():
                 email TEXT UNIQUE NOT NULL,
                 password_hash TEXT NOT NULL,
                 otp_secret TEXT NOT NULL,
+                company_name TEXT NOT NULL,
+                company_address TEXT NOT NULL,
                 is_active BOOLEAN DEFAULT TRUE,
                 is_email_verified BOOLEAN DEFAULT FALSE,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 last_login_at TIMESTAMP
-            )
-        ''')
-        
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS api_keys (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER NOT NULL,
-                key_hash TEXT UNIQUE NOT NULL,
-                key_name TEXT NOT NULL,
-                is_active BOOLEAN DEFAULT TRUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                last_used_at TIMESTAMP,
-                usage_count INTEGER DEFAULT 0,
-                FOREIGN KEY (user_id) REFERENCES users (id)
             )
         ''')
         

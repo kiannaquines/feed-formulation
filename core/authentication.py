@@ -1,5 +1,4 @@
 import secrets
-import hashlib  
 from datetime import datetime, timedelta
 from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends
@@ -18,12 +17,6 @@ def hash_password(password: str) -> str:
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     return pwd_context.verify(plain_password, hashed_password)
-
-def hash_api_key(api_key: str) -> str:
-    return hashlib.sha256(api_key.encode()).hexdigest()
-
-def generate_api_key() -> str:
-    return secrets.token_urlsafe(32)
 
 def generate_otp_secret() -> str:
     return secrets.token_urlsafe(32)

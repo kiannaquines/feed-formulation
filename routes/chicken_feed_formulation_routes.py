@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from models.models import *
+from schema.schema import *
 from core.authentication import *
 import numpy as np
 

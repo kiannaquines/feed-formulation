@@ -1,89 +1,34 @@
-from pydantic import BaseModel, Field, EmailStr
-from typing import List
+from sqlalchemy.orm import declarative_base, relationship
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime
+from datetime import datetime
 
-class UserRegister(BaseModel):
-    username: str
-    email: EmailStr
-    password: str
+Base = declarative_base()
 
-class UserLogin(BaseModel):
-    username: str
-    password: str
+class User(Base):
+    __tablename__ = "users"
 
-class OTPVerification(BaseModel):
-    session_token: str
-    otp_code: str
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    email = Column(String, unique=True, index=True)
+    password_hash = Column(String, nullable=False)
+    otp_secret = Column(String, nullable=False)
+    is_active = Column(Boolean, default=True)
+    is_email_verified = Column(Boolean, default=False)
+    is_superuser = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_login_at = Column(DateTime, nullable=True)
 
-class APIKeyCreate(BaseModel):
-    key_name: str
+    otp_sessions = relationship("OTPSession", back_populates="user")
 
-class APIKeyResponse(BaseModel):
-    api_key: str
-    key_name: str
-    message: str
 
-class UserResponse(BaseModel):
-    id: int
-    username: str
-    email: str
-    is_active: bool
-    created_at: str
+class OTPSession(Base):
+    __tablename__ = "otp_sessions"
 
-class Ingredient(BaseModel):
-    name: str
-    cost_per_kg: float
-    protein_percent: float = Field(0.0, ge=0.0)
-    energy_me: float = Field(0.0, ge=0.0)
-    calcium_percent: float = Field(0.0, ge=0.0)
-    phosphorus_percent: float = Field(0.0, ge=0.0)
-    min_percentage: float = Field(0.0, ge=0.0, le=1.0)
-    max_percentage: float = Field(1.0, ge=0.0, le=1.0)
-
-class NutrientRequirement(BaseModel):
-    protein_percent: float
-    energy_me: float
-    calcium_percent: float
-    phosphorus_percent: float
-
-class FeedFormulationRequest(BaseModel):
-    ingredients: List[Ingredient]
-    nutrient_requirements: NutrientRequirement
-    optimization_method: str = Field("highs", description="e.g., 'highs', 'revised simplex', 'interior-point'")
-
-    class Config:
-        json_schema_extra = {
-            "example": {
-                "ingredients": [
-                    {
-                        "name": "Corn",
-                        "cost_per_kg": 0.25,
-                        "protein_percent": 8.0,
-                        "energy_me": 3300,
-                        "calcium_percent": 0.03,
-                        "phosphorus_percent": 0.25,
-                        "min_percentage": 0.1,
-                        "max_percentage": 0.6
-                    },
-                    {
-                        "name": "Soybean Meal",
-                        "cost_per_kg": 0.4,
-                        "protein_percent": 44.0,
-                        "energy_me": 2800,
-                        "calcium_percent": 0.3,
-                        "phosphorus_percent": 0.65,
-                        "min_percentage": 0.1,
-                        "max_percentage": 0.4
-                    }
-                ],
-                "nutrient_requirements": {
-                    "protein_percent": 18.0,
-                    "energy_me": 3000,
-                    "calcium_percent": 0.9,
-                    "phosphorus_percent": 0.45
-                },
-                "optimization_method": "highs"
-            }
-        }
-
-class FeedFormulationPreset(BaseModel):
-    preset_name: str = "custom"
+    id = Column(Integer, primary_key=True, index=True)
+    session_token = Column(String, unique=True, nullable=False)
+    is_verified = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    expires_at = Column(DateTime, nullable=False)
+    
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    user = relationship("User", back_populates="otp_sessions")
