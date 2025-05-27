@@ -1,4 +1,4 @@
-from .constants import *
+from .config import *
 import hmac
 import hashlib
 import struct

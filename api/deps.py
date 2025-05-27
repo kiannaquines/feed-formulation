@@ -1,6 +1,6 @@
 import sqlite3
 from contextlib import contextmanager
-from .constants import DATABASE_PATH
+from core.config import DATABASE_PATH
 
 def init_database():
     """Initialize the SQLite database"""

@@ -51,7 +51,7 @@ class FeedFormulationRequest(BaseModel):
     optimization_method: str = Field("highs", description="e.g., 'highs', 'revised simplex', 'interior-point'")
 
     class Config:
-        schema_extra = {
+        json_schema_extra = {
             "example": {
                 "ingredients": [
                     {
