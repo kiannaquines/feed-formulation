@@ -222,10 +222,10 @@ class FeedFormulationWithPayloadRequest(BaseModel):
                         }
                         ],
                         "nutrient_targets": {
-                        "protein_percent": 22.3,
-                        "energy_me": 2.9,
-                        "calcium_percent": 0.87,
-                        "phosphorus_percent": 0.48
+                            "protein_percent": 22.3,
+                            "energy_me": 2.9,
+                            "calcium_percent": 0.87,
+                            "phosphorus_percent": 0.48
                         }
                     },
                     "status": "success",
@@ -237,112 +237,112 @@ class FeedFormulationWithPayloadRequest(BaseModel):
                     },
                     "ingredient_composition": [
                         {
-                        "name": "Corn",
-                        "percentage": 45,
-                        "cost_contribution": 33.75,
-                        "included": True
+                            "name": "Corn",
+                            "percentage": 45,
+                            "cost_contribution": 33.75,
+                            "included": True
                         },
                         {
-                        "name": "Soybean Meal",
-                        "percentage": 30,
-                        "cost_contribution": 30,
-                        "included": True
+                            "name": "Soybean Meal",
+                            "percentage": 30,
+                            "cost_contribution": 30,
+                            "included": True
                         },
                         {
-                        "name": "Skimmilk",
-                        "percentage": 2,
-                        "cost_contribution": 5,
-                        "included": True
+                            "name": "Skimmilk",
+                            "percentage": 2,
+                            "cost_contribution": 5,
+                            "included": True
                         },
                         {
-                        "name": "Rice bran D1",
-                        "percentage": 8.976,
-                        "cost_contribution": 7.1808,
-                        "included": True
+                            "name": "Rice bran D1",
+                            "percentage": 8.976,
+                            "cost_contribution": 7.1808,
+                            "included": True
                         },
                         {
-                        "name": "Fish Meal",
-                        "percentage": 1,
-                        "cost_contribution": 1.5,
-                        "included": True
+                            "name": "Fish Meal",
+                            "percentage": 1,
+                            "cost_contribution": 1.5,
+                            "included": True
                         },
                         {
-                        "name": "Coconut Oil",
-                        "percentage": 2.7661,
-                        "cost_contribution": 1.3831,
-                        "included": True
+                            "name": "Coconut Oil",
+                            "percentage": 2.7661,
+                            "cost_contribution": 1.3831,
+                            "included": True
                         },
                         {
-                        "name": "Limestone",
-                        "percentage": 0.8755,
-                        "cost_contribution": 0.0552,
-                        "included": True
+                            "name": "Limestone",
+                            "percentage": 0.8755,
+                            "cost_contribution": 0.0552,
+                            "included": True
                         },
                         {
-                        "name": "Monodical Phosphate",
-                        "percentage": 1.8014,
-                        "cost_contribution": 1.4411,
-                        "included": True
+                            "name": "Monodical Phosphate",
+                            "percentage": 1.8014,
+                            "cost_contribution": 1.4411,
+                            "included": True
                         },
                         {
-                        "name": "Vitamin Premix",
-                        "percentage": 0.25,
-                        "cost_contribution": 0.4625,
-                        "included": True
+                            "name": "Vitamin Premix",
+                            "percentage": 0.25,
+                            "cost_contribution": 0.4625,
+                            "included": True
                         },
                         {
-                        "name": "Choline",
-                        "percentage": 0.25,
-                        "cost_contribution": 1.6,
-                        "included": True
+                            "name": "Choline",
+                            "percentage": 0.25,
+                            "cost_contribution": 1.6,
+                            "included": True
                         },
                         {
-                        "name": "Salt",
-                        "percentage": 0.25,
-                        "cost_contribution": 0.07,
-                        "included": True
+                            "name": "Salt",
+                            "percentage": 0.25,
+                            "cost_contribution": 0.07,
+                            "included": True
                         },
                         {
-                        "name": "L-lysine",
-                        "percentage": 0.25,
-                        "cost_contribution": 3.1975,
-                        "included": True
+                            "name": "L-lysine",
+                            "percentage": 0.25,
+                            "cost_contribution": 3.1975,
+                            "included": True
                         },
                         {
-                        "name": "DL-Methionine",
-                        "percentage": 5.331,
-                        "cost_contribution": 6.3972,
-                        "included": True
+                            "name": "DL-Methionine",
+                            "percentage": 5.331,
+                            "cost_contribution": 6.3972,
+                            "included": True
                         },
                         {
-                        "name": "Antioxidant",
-                        "percentage": 0.25,
-                        "cost_contribution": 0.5,
-                        "included": True
+                            "name": "Antioxidant",
+                            "percentage": 0.25,
+                            "cost_contribution": 0.5,
+                            "included": True
                         },
                         {
-                        "name": "Azolla",
-                        "percentage": 1,
-                        "cost_contribution": 3.5,
-                        "included": True
+                            "name": "Azolla",
+                            "percentage": 1,
+                            "cost_contribution": 3.5,
+                            "included": True
                         }
                     ],
                     "nutrient_achievement": {
                         "protein_percent": {
-                        "achieved": 22.3,
-                        "required": 22.3
+                            "achieved": 22.3,
+                            "required": 22.3
                         },
                         "energy_me": {
-                        "achieved": 2.9,
-                        "required": 2.9
+                            "achieved": 2.9,
+                            "required": 2.9
                         },
                         "calcium_percent": {
-                        "achieved": 0.87,
-                        "required": 0.87
+                            "achieved": 0.87,
+                            "required": 0.87
                         },
                         "phosphorus_percent": {
-                        "achieved": 0.48,
-                        "required": 0.48
+                            "achieved": 0.48,
+                            "required": 0.48
                         }
                     },
                     "summary": {
