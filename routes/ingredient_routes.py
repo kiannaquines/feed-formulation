@@ -9,12 +9,19 @@ ingredient_router = APIRouter(tags=["Ingredients"])
 
 
 @ingredient_router.get("/ingredients")
-def get_ingredients(db=Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
+def get_ingredients(db: Session = Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
     """
     Retrieve a list of all ingredients.
     """
-    ingredients = db.query(Ingredient).all()
-    return ingredients
+    ingredients = db.query(Ingredient).order_by(Ingredient.created_at).all()
+    
+    if not ingredients:
+        return {"detail": "Ingredients are currently empty"}
+    
+    return {
+        "detail": f"Found {len(ingredients)} ingredients",
+        "ingredients": ingredients,
+    }
 
 @ingredient_router.post("/ingredients/create", response_model=IngredientResponse)
 def create_ingredient(data: IngredientCreate, db: Session = Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):

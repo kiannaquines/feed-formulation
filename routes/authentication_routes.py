@@ -8,7 +8,7 @@ from core.otp import generate_otp, verify_otp
 from core.authentication import generate_otp_secret
 from datetime import datetime, timedelta
 import secrets
-from core.config import OTP_SESSION_EXPIRATION_MINUTES, JWT_EXPIRATION_HOURS
+from core.config import OTP_SESSION_EXPIRATION_MINUTES, JWT_EXPIRATION_HOURS, OTP_IS_ENABLED
 
 auth_router = APIRouter(tags=["Authentication"])
 
@@ -45,7 +45,7 @@ def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
 
 @auth_router.post("/auth/login")
 def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
-    """Login user and initiate OTP verification"""
+    """Login user and optionally initiate OTP verification"""
     user = db.query(User).filter(
         User.username == login_data.username,
         User.is_active == True
@@ -56,6 +56,20 @@ def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid username or password"
         )
+
+    if not OTP_IS_ENABLED:
+        jwt_token = create_jwt_token(user.id, user.username)
+        return {
+            "message": "Login successful (OTP disabled)",
+            "access_token": jwt_token,
+            "token_type": "bearer",
+            "expires_in_hours": JWT_EXPIRATION_HOURS,
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email
+            }
+        }
 
     session_token = secrets.token_urlsafe(32)
     expires_at = datetime.utcnow() + timedelta(minutes=OTP_SESSION_EXPIRATION_MINUTES)
@@ -76,13 +90,20 @@ def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
         "message": "Login successful. Please verify OTP to complete authentication.",
         "session_token": session_token,
         "current_otp": current_otp,
-        "expires_in_minutes": 10,
+        "expires_in_minutes": OTP_SESSION_EXPIRATION_MINUTES,
         "note": "Use the OTP with your session token to get your JWT token"
     }
 
 @auth_router.post("/auth/verify-otp")
 def verify_user_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
-    """Verify OTP and return JWT token"""
+    """Verify OTP and return JWT token (or bypass if OTP is disabled)"""
+
+    if not OTP_IS_ENABLED:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="OTP verification is currently disabled."
+        )
+
     session = db.query(OTPSession).join(User).filter(
         OTPSession.session_token == otp_data.session_token,
         OTPSession.expires_at > datetime.utcnow(),
@@ -104,7 +125,6 @@ def verify_user_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
 
     session.is_verified = True
     user.last_login_at = datetime.utcnow()
-
     db.commit()
 
     jwt_token = create_jwt_token(user.id, user.username)
