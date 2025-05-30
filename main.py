@@ -7,6 +7,7 @@ from routes.authentication_routes import auth_router
 from routes.feed_formulation_routes import feed_formulation_router
 from routes.root_routes import root_router
 from routes.ingredient_routes import ingredient_router
+from routes.nutrient_requirements_routes import nutrient_requirements_router
 
 app = FastAPI(
     title="Feed Formulation API with Authentication",
@@ -30,6 +31,7 @@ app.include_router(root_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(feed_formulation_router, prefix="/api/v1")
 app.include_router(ingredient_router, prefix="/api/v1")
+app.include_router(nutrient_requirements_router, prefix="/api/v1")
 
 if __name__ == "__main__":
     import uvicorn

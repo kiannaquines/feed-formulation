@@ -119,3 +119,8 @@ class FeedFormulationWithPayloadRequest(BaseModel):
     formulation_description: str
     user_id: int
     payload: dict
+
+class NutrientRequirementsBase(BaseModel):
+    nutrient_requirement_name: str
+    nutrient_requirement_description: str = None
+    composition: dict

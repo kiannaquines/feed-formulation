@@ -122,22 +122,18 @@ async def feed_formulator(
                 "protein_percent": {
                     "achieved": round(float(nutrient_values[0]), 4),
                     "required": round(float(formulation_request.nutrient_requirements.protein_percent), 4),
-                    "difference": round(float(nutrient_values[0] - formulation_request.nutrient_requirements.protein_percent), 4)
                 },
                 "energy_me": {
                     "achieved": round(float(nutrient_values[1]), 4),
                     "required": round(float(formulation_request.nutrient_requirements.energy_me), 4),
-                    "difference": round(float(nutrient_values[1] - formulation_request.nutrient_requirements.energy_me), 4)
                 },
                 "calcium_percent": {
                     "achieved": round(float(nutrient_values[2]), 4),
                     "required": round(float(formulation_request.nutrient_requirements.calcium_percent), 4),
-                    "difference": round(float(nutrient_values[2] - formulation_request.nutrient_requirements.calcium_percent), 4)
                 },
                 "phosphorus_percent": {
                     "achieved": round(float(nutrient_values[3]), 4),
                     "required": round(float(formulation_request.nutrient_requirements.phosphorus_percent), 4),
-                    "difference": round(float(nutrient_values[3] - formulation_request.nutrient_requirements.phosphorus_percent), 4)
                 }
             },
             "summary": {

@@ -61,5 +61,12 @@ class FeedFormulation(Base):
     user_id = Column(Integer, nullable=False)
     payload = Column(JSON, nullable=False)
 
+class NutrientRequirements(Base):
+    __tablename__ = "nutrient_requirements"
+
+    id = Column(Integer, primary_key=True, index=True)
+    nutrient_requirement_name = Column(String, nullable=False)
+    nutrient_requirement_description = Column(String, nullable=True)
+    composition = Column(JSON, nullable=False)
 
 
