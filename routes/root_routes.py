@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request
 import socket
 import time
 import psutil
-
+from core.config import OTP_IS_ENABLED
 root_router = APIRouter(tags=["Root Routes"])
 
 hostname = socket.gethostname()
@@ -15,15 +15,6 @@ def index_page(request: Request):
         "client_ip": request.client.host,
         "documentation": str(request.base_url) + "docs",
         "hostname": hostname,
-        "authentication": {
-            "methods": ["JWT Token"],
-            "endpoints": {
-                "register": "POST /auth/register",
-                "login": "POST /auth/login",
-                "verify_otp": "POST /auth/verify-otp",
-                "feed_formulation": "POST /chicken/feed/formulate",
-            }
-        }
     }
 
 @root_router.get("/health")
@@ -42,6 +33,7 @@ def health_check():
     return {
         "status": status,
         "details": {
+            "otp_enabled": OTP_IS_ENABLED,
             "uptime_seconds": uptime_seconds,
             "hostname": hostname,
             "cpu_usage_percent": cpu_usage,

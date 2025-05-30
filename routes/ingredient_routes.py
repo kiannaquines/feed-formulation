@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 ingredient_router = APIRouter(tags=["Ingredients"])
 
 
-@ingredient_router.get("/ingredients")
+@ingredient_router.get("/ingredients/all")
 def get_ingredients(db: Session = Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
     """
     Retrieve a list of all ingredients.

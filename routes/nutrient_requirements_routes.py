@@ -5,7 +5,7 @@ from schema.schema import NutrientRequirementsBase
 from core.authentication import *
 nutrient_requirements_router = APIRouter(tags=["Nutrient Requirements"])
 
-@nutrient_requirements_router.get("/nutrient-requirements", status_code=status.HTTP_200_OK)
+@nutrient_requirements_router.get("/nutrient-requirements/all", status_code=status.HTTP_200_OK)
 def get_nutrient_requirements(db=Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
     """
     Retrieve all nutrient requirements.
@@ -41,15 +41,36 @@ def create_nutrient_requirements(nutrient_requirement: NutrientRequirementsBase,
     }
 
 @nutrient_requirements_router.put('/nutrient-requrments/update/{nutrient_requirment_id}', status_code=status.HTTP_200_OK)
-def update_nutrient_requirement(nutrient_requirement_id: int, db=Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
-    raise HTTPException(
-        status_code=status.HTTP_202_ACCEPTED,
-        detail="Nutrient requirements updated successfully"
-    )
+def update_nutrient_requirement(nutrient_requirement_id: int, nutrient_requirment_payload: NutrientRequirementsBase, db=Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
+    nutrient_requirement = db.query(NutrientRequirements).filter(NutrientRequirements.id == nutrient_requirement_id).first()
+
+    if not nutrient_requirement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Nutrient requirement not found"
+        )
+    nutrient_requirement.nutrient_requirement_name = nutrient_requirment_payload.nutrient_requirement_name
+    nutrient_requirement.nutrient_requirement_description = nutrient_requirment_payload.nutrient_requirement_description
+    nutrient_requirement.composition = nutrient_requirment_payload.composition
+
+    db.commit()
+    db.refresh(nutrient_requirement)
+
+    return {
+        "detail": "Nutrient requirements updated successfully",
+        "nutrient_info": nutrient_requirement,
+    }
 
 @nutrient_requirements_router.delete('/nutrient-requrments/delete/{nutrient_requirment_id}', status_code=status.HTTP_200_OK)
 def delete_nutrient_requirement(nutrient_requirement_id: int, db=Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
-    raise HTTPException(
-        status_code=status.HTTP_202_ACCEPTED,
-        detail="Nutrient requirements deleted successfully"
-    )
+    nutrient_requirement = db.query(NutrientRequirements).filter(NutrientRequirements.id == nutrient_requirement_id).first()
+    if not nutrient_requirement:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Nutrient requirement not found"
+        )
+    db.delete(nutrient_requirement)
+    db.commit()
+    return {
+        "detail": "Nutrient requirement deleted successfully"
+    }
