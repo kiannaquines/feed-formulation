@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException, status, Depends
 from sqlalchemy.orm import Session
-from db.database import SessionLocal, get_db
+from db.database import get_db
 from models.models import User, OTPSession
 from schema.schema import UserRegister, UserLogin, OTPVerification
 from core.authentication import hash_password, verify_password, create_jwt_token
@@ -8,6 +8,7 @@ from core.otp import generate_otp, verify_otp
 from core.authentication import generate_otp_secret
 from datetime import datetime, timedelta
 import secrets
+from core.config import OTP_SESSION_EXPIRATION_MINUTES, JWT_EXPIRATION_HOURS
 
 auth_router = APIRouter(tags=["Authentication"])
 
@@ -39,8 +40,6 @@ def register_user(user_data: UserRegister, db: Session = Depends(get_db)):
 
     return {
         "message": "User registered successfully",
-        "user_id": user.id,
-        "otp_secret": otp_secret,
         "note": "Save your OTP secret securely. You'll need it for login verification."
     }
 
@@ -59,7 +58,7 @@ def login_user(login_data: UserLogin, db: Session = Depends(get_db)):
         )
 
     session_token = secrets.token_urlsafe(32)
-    expires_at = datetime.utcnow() + timedelta(minutes=10)
+    expires_at = datetime.utcnow() + timedelta(minutes=OTP_SESSION_EXPIRATION_MINUTES)
 
     otp_session = OTPSession(
         user_id=user.id,
@@ -114,7 +113,7 @@ def verify_user_otp(otp_data: OTPVerification, db: Session = Depends(get_db)):
         "message": "OTP verified successfully",
         "access_token": jwt_token,
         "token_type": "bearer",
-        "expires_in_hours": 12,
+        "expires_in_hours": JWT_EXPIRATION_HOURS,
         "user": {
             "id": user.id,
             "username": user.username,

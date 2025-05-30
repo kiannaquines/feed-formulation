@@ -1,11 +1,15 @@
 from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.orm import Session
+from sqlalchemy.exc import SQLAlchemyError
 from schema.schema import *
 from core.authentication import *
 import numpy as np
+from db.database import get_db
+from models.models import FeedFormulation
 
-chicken_feed_formulation_router = APIRouter(tags=["Chicken Feed Formulation"])
+feed_formulation_router = APIRouter(tags=["Feed Formulation"])
 
-@chicken_feed_formulation_router.post("/chicken/feed/formulate")
+@feed_formulation_router.post("/feed/formulate")
 async def feed_formulator(
     formulation_request: FeedFormulationRequest,
     auth_user: dict = Depends(verify_jwt_token)
@@ -72,11 +76,8 @@ async def feed_formulator(
         )
 
     base_response = {
-        "authenticated_user": auth_user['username'],
-        "user_id": auth_user['user_id'],
         "formulation_inputs": {
             "total_ingredients": len(ingredients),
-            "optimization_method": formulation_request.optimization_method,
             "ingredients": [
                 {
                     "name": ing.name,
@@ -149,7 +150,7 @@ async def feed_formulator(
     else:
         base_response.update({
             "status": "failure",
-            "message": "No optimal solution found.",
+            "detail": "No optimal solution found.",
             "error_details": {
                 "solver_status_code": result.status,
                 "solver_message": result.message,
@@ -169,3 +170,139 @@ async def feed_formulator(
         })
 
     return base_response
+
+@feed_formulation_router.post("/feed/formulation/save", status_code=status.HTTP_201_CREATED)
+async def save_formulation(
+    formulation: FeedFormulationWithPayloadRequest,
+    db=Depends(get_db),
+    auth_user: dict = Depends(verify_jwt_token)
+):
+    try:
+        if auth_user["user_id"] != formulation.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only save formulations for your own account."
+            )
+
+        new_entry = FeedFormulation(
+            formulation_name=formulation.formulation_name,
+            formulation_description=formulation.formulation_description,
+            user_id=formulation.user_id,
+            payload=formulation.payload
+        )
+        
+        db.add(new_entry)
+        db.commit()
+        db.refresh(new_entry)
+                
+        return {
+            "detail": "Formulation saved successfully.",
+        }
+
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error occurred: {str(e)}"
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}"
+        )
+
+@feed_formulation_router.get('/feed/formulation/all', status_code=status.HTTP_200_OK)
+async def get_all_formulation(db=Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
+    formulations = db.query(FeedFormulation).all()
+    return formulations
+
+@feed_formulation_router.delete('/feed/formulation/remove/{formulation_id}', status_code=status.HTTP_200_OK)
+async def remove_formulation(formulation_id: int, db=Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
+    try:
+
+        remove_formulation = db.query(FeedFormulation).filter(FeedFormulation.id == formulation_id).delete()
+        db.commit()
+        if remove_formulation:
+            raise HTTPException(
+                status_code=status.HTTP_200_OK,
+                detail=f"Formulation details has been successfully removed."
+            )
+        else:
+            raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Formulation details not found."
+            )
+    
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error occured: {str(e)}"
+        )        
+
+@feed_formulation_router.put('/feed/formulation/update/{formulation_id}', status_code=status.HTTP_200_OK)
+async def update_formulation(
+    formulation_id: int,
+    payload: FeedFormulationWithPayloadRequest,
+    db: Session = Depends(get_db),
+    auth_user: dict = Depends(verify_jwt_token)
+):
+    try:
+        if auth_user["user_id"] != payload.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not allowed to update formulations for other users."
+            )
+
+        formulation = db.query(FeedFormulation).filter(
+            FeedFormulation.id == formulation_id,
+            FeedFormulation.user_id == payload.user_id
+        ).first()
+
+        if not formulation:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Formulation not found."
+            )
+        
+        formulation.payload = payload.payload
+        formulation.formulation_name = payload.formulation_name
+        formulation.formulation_description = payload.formulation_description
+
+        db.commit()
+        db.refresh(formulation)
+
+        return {
+            "message": "Formulation updated successfully.",
+            "formulation": formulation
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An error occurred while updating the formulation: {str(e)}"
+        )
+
+
+@feed_formulation_router.get('/my/feed/formulation/',status_code=status.HTTP_200_OK)
+async def get_my_formulations(db=Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
+    try:
+        my_formulations = db.query(FeedFormulation).filter(FeedFormulation.user_id == auth_user['user_id']).all()
+        return my_formulations
+    
+    except SQLAlchemyError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Database error occurred: {str(e)}"
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred: {str(e)}"
+        )    

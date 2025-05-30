@@ -4,14 +4,18 @@ from db.database import *
 from schema.schema import *
 
 from routes.authentication_routes import auth_router
-from routes.chicken_feed_formulation_routes import chicken_feed_formulation_router
+from routes.feed_formulation_routes import feed_formulation_router
 from routes.root_routes import root_router
 from routes.ingredient_routes import ingredient_router
 
 app = FastAPI(
     title="Feed Formulation API with Authentication",
     description="API for feed formulation and management with user authentication and OTP security",
-    version="1.0.0"
+    version="1.0.0",
+    contact={
+        "name": "Kian Naquines",
+        "email": "kjgnaquines@usm.edu.ph"
+    }
 )
 
 app.add_middleware(
@@ -24,7 +28,7 @@ app.add_middleware(
 
 app.include_router(root_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")
-app.include_router(chicken_feed_formulation_router, prefix="/api/v1")
+app.include_router(feed_formulation_router, prefix="/api/v1")
 app.include_router(ingredient_router, prefix="/api/v1")
 
 if __name__ == "__main__":

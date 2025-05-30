@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import BaseModel, Field, EmailStr, Json
 from typing import List
 from datetime import datetime
 
@@ -59,7 +59,7 @@ class FeedFormulationRequest(BaseModel):
                         "name": "Corn",
                         "cost_per_kg": 0.25,
                         "protein_percent": 8.0,
-                        "energy_me": 3300,
+                        "energy_me": 3.3,
                         "calcium_percent": 0.03,
                         "phosphorus_percent": 0.25,
                         "min_percentage": 0.1,
@@ -69,7 +69,7 @@ class FeedFormulationRequest(BaseModel):
                         "name": "Soybean Meal",
                         "cost_per_kg": 0.4,
                         "protein_percent": 44.0,
-                        "energy_me": 2800,
+                        "energy_me": 2.8,
                         "calcium_percent": 0.3,
                         "phosphorus_percent": 0.65,
                         "min_percentage": 0.1,
@@ -78,7 +78,7 @@ class FeedFormulationRequest(BaseModel):
                 ],
                 "nutrient_requirements": {
                     "protein_percent": 18.0,
-                    "energy_me": 3000,
+                    "energy_me": 3.0,
                     "calcium_percent": 0.9,
                     "phosphorus_percent": 0.45
                 },
@@ -113,3 +113,9 @@ class IngredientResponse(IngredientBase):
 
     class Config:
         from_attributes = True
+
+class FeedFormulationWithPayloadRequest(BaseModel):
+    formulation_name: str
+    formulation_description: str
+    user_id: int
+    payload: dict

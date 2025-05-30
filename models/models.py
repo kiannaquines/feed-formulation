@@ -1,5 +1,5 @@
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float
+from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, JSON
 from datetime import datetime
 
 Base = declarative_base()
@@ -51,4 +51,15 @@ class Ingredient(Base):
     m_c = Column(Float, nullable=False)
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+class FeedFormulation(Base):
+    __tablename__ = "formulations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    formulation_name = Column(String, nullable=True)
+    formulation_description = Column(String, nullable=True)
+    user_id = Column(Integer, nullable=False)
+    payload = Column(JSON, nullable=False)
+
+
 
