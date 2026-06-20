@@ -25,7 +25,7 @@ def get_ingredients(db: Session = Depends(get_db), auth_user: dict = Depends(ver
 
 @ingredient_router.post("/ingredients/create", response_model=IngredientResponse)
 def create_ingredient(data: IngredientCreate, db: Session = Depends(get_db), auth_user: dict = Depends(verify_jwt_token)):
-    ingredient = Ingredient(**data.dict())
+    ingredient = Ingredient(**data.dict(), user_id=auth_user["user_id"])
     db.add(ingredient)
     db.commit()
     db.refresh(ingredient)

@@ -49,6 +49,7 @@ class Ingredient(Base):
     lysine = Column(Float, nullable=False)
     methionine = Column(Float, nullable=False)
     m_c = Column(Float, nullable=False)
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -68,5 +69,4 @@ class NutrientRequirements(Base):
     nutrient_requirement_name = Column(String, nullable=False)
     nutrient_requirement_description = Column(String, nullable=True)
     composition = Column(JSON, nullable=False)
-
 

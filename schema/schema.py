@@ -109,6 +109,7 @@ class IngredientCreate(IngredientBase):
 
 class IngredientResponse(IngredientBase):
     id: int
+    user_id: int | None = None
     created_at: datetime
 
     class Config:
