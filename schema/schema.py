@@ -360,6 +360,7 @@ class NutrientRequirementsBase(BaseModel):
     nutrient_requirement_name: str
     nutrient_requirement_description: str
     composition: dict
+    user_id: int | None = None
 
     class Config:
         json_schema_extra = {

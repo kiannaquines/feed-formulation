@@ -29,7 +29,8 @@ def create_nutrient_requirements(nutrient_requirement: NutrientRequirementsBase,
     db_nutrient_requirement = NutrientRequirements(
         nutrient_requirement_name=nutrient_requirement.nutrient_requirement_name,
         nutrient_requirement_description=nutrient_requirement.nutrient_requirement_description,
-        composition=nutrient_requirement.composition
+        composition=nutrient_requirement.composition,
+        user_id=auth_user["user_id"]
     )
     db.add(db_nutrient_requirement)
     db.commit()

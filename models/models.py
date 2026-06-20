@@ -69,4 +69,4 @@ class NutrientRequirements(Base):
     nutrient_requirement_name = Column(String, nullable=False)
     nutrient_requirement_description = Column(String, nullable=True)
     composition = Column(JSON, nullable=False)
-
+    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
