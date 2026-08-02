@@ -30,6 +30,13 @@ class LicensingRepository:
             select(Device).where(Device.installation_id == installation_id)
         )
 
+    def get_registered_device(self, user_id: int) -> Device | None:
+        return self.db.scalar(
+            select(Device)
+            .where(Device.user_id == user_id)
+            .order_by(Device.created_at, Device.id)
+        )
+
     def get_device(self, device_id: int) -> Device | None:
         return self.db.get(Device, device_id)
 
@@ -45,20 +52,6 @@ class LicensingRepository:
                 .where(Device.user_id == user_id)
                 .order_by(Device.created_at)
             ).all()
-        )
-
-    def get_unassigned_trial(
-        self, user_id: int, current_time: datetime
-    ) -> DeviceLicense | None:
-        return self.db.scalar(
-            select(DeviceLicense).where(
-                DeviceLicense.user_id == user_id,
-                DeviceLicense.device_id.is_(None),
-                DeviceLicense.license_type == "trial",
-                DeviceLicense.status == "active",
-                DeviceLicense.starts_at <= current_time,
-                DeviceLicense.expires_at > current_time,
-            )
         )
 
     def get_effective_license(

@@ -17,7 +17,7 @@ from core.exceptions import (
 from core.licensing import LICENSE_DAYS, PLANS, REFERRAL_BONUS_DAYS, TRIAL_DAYS
 from models.models import Device, DeviceLicense, Referral, ReferralCredit, User
 from repositories import LicensingRepository, UserRepository
-from schema.schema import UserLogin
+from schema.schema import UserRegister
 
 
 class LicensingService:
@@ -32,12 +32,12 @@ class LicensingService:
         self.users = users or UserRepository(db)
 
     def initialize_account(
-        self, user: User, referral_code: str | None, current_time: datetime | None = None
+        self, user: User, data: UserRegister, current_time: datetime | None = None
     ) -> None:
         now = current_time or datetime.utcnow()
         user.referral_code = self._new_referral_code()
-        if referral_code:
-            referrer = self.licensing.get_referrer_by_code(referral_code)
+        if data.referral_code:
+            referrer = self.licensing.get_referrer_by_code(data.referral_code)
             if not referrer:
                 raise ValidationError("Referral code is invalid")
             if referrer.id == user.id:
@@ -45,9 +45,22 @@ class LicensingService:
             self._add(
                 Referral(referrer_user_id=referrer.id, referred_user_id=user.id)
             )
+        installation_id = str(data.installation_id)
+        if self.licensing.get_device_by_installation(installation_id):
+            raise ConflictError("This installation is registered to another account")
+        device = self._add(
+            Device(
+                user_id=user.id,
+                installation_id=installation_id,
+                name=data.device_name,
+                device_type=data.device_type,
+                last_seen_at=now,
+            )
+        )
         trial = self._add(
             DeviceLicense(
                 user_id=user.id,
+                device_id=device.id,
                 plan_code="starter",
                 license_type="trial",
                 status="active",
@@ -58,36 +71,16 @@ class LicensingService:
         )
         self.licensing.add_event(trial.id, "trial_created", user.id, {})
 
-    def register_login_device(
-        self, user: User, data: UserLogin, current_time: datetime | None = None
+    def get_login_device(
+        self, user: User, current_time: datetime | None = None
     ) -> Device:
         now = current_time or datetime.utcnow()
-        installation_id = str(data.installation_id)
-        device = self.licensing.get_device_by_installation(installation_id)
-        if device and device.user_id != user.id:
-            raise ConflictError("This installation is registered to another account")
+        device = self._read(lambda: self.licensing.get_registered_device(user.id))
         if not device:
-            device = self._add(
-                Device(
-                    user_id=user.id,
-                    installation_id=installation_id,
-                    name=data.device_name,
-                    device_type=data.device_type,
-                    last_seen_at=now,
-                )
-            )
-            trial = self.licensing.get_unassigned_trial(user.id, now)
-            if trial:
-                trial.device_id = device.id
-                self.licensing.add_event(
-                    trial.id, "trial_assigned", user.id, {"device_id": device.id}
-                )
-        elif not device.is_active:
+            raise AuthenticationError("No registered device found for this account")
+        if not device.is_active:
             raise AuthenticationError("Device is inactive")
-        else:
-            device.name = data.device_name
-            device.device_type = data.device_type
-            device.last_seen_at = now
+        device.last_seen_at = now
         return device
 
     def require_entitlement(self, auth_user: dict) -> dict:

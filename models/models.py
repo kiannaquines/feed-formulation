@@ -154,13 +154,40 @@ class Ingredient(Base):
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
+class FormulationSeries(Base):
+    __tablename__ = "formulation_series"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    next_version_number = Column(Integer, nullable=False, default=2)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class FeedFormulation(Base):
     __tablename__ = "formulations"
+    __table_args__ = (
+        UniqueConstraint(
+            "series_id", "version_number", name="uq_formulations_series_version"
+        ),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     formulation_name = Column(String, nullable=True)
     formulation_description = Column(String, nullable=True)
     user_id = Column(Integer, nullable=False)
+    series_id = Column(
+        Integer,
+        ForeignKey("formulation_series.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    parent_version_id = Column(
+        Integer,
+        ForeignKey("formulations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    version_number = Column(Integer, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     payload = Column(JSON, nullable=False)
 
 class NutrientRequirements(Base):

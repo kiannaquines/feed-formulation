@@ -34,6 +34,13 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "Feed Formulation V2",
+        "description": (
+            "Run the isolated V2 formulation API with closest-candidate diagnostics "
+            "for infeasible optimization requests."
+        ),
+    },
+    {
         "name": "Ingredients",
         "description": (
             "Manage ingredient composition and pricing. Users can read their own "

@@ -52,12 +52,13 @@ def feed_formulator(
 
 @feed_formulation_router.post(
     "/feed/formulation/save",
-    response_model=DetailResponse,
+    response_model=FeedFormulationUpdateResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Save a formulation result",
     description=(
         "Store a named formulation payload for the authenticated user. The server "
-        "derives ownership from the Bearer token."
+        "derives ownership from the Bearer token and creates version 1 of a new "
+        "formulation series."
     ),
     responses={**PROTECTED_RESPONSES, **VALIDATION_RESPONSE},
 )
@@ -74,7 +75,10 @@ def save_formulation(
     response_model=list[FeedFormulationResponse],
     status_code=status.HTTP_200_OK,
     summary="List saved formulations",
-    description="Return every formulation owned by the authenticated user.",
+    description=(
+        "Return the latest version of every formulation series owned by the "
+        "authenticated user."
+    ),
     responses=PROTECTED_RESPONSES,
 )
 def get_all_formulation(
@@ -89,7 +93,10 @@ def get_all_formulation(
     response_model=DetailResponse,
     status_code=status.HTTP_200_OK,
     summary="Delete a saved formulation",
-    description="Delete a formulation owned by the authenticated user.",
+    description=(
+        "Delete only the selected formulation version. Remaining immutable version "
+        "numbers are not changed or reused."
+    ),
     responses=OWNED_RESOURCE_RESPONSES,
 )
 def remove_formulation(
@@ -100,24 +107,67 @@ def remove_formulation(
     return service.delete(formulation_id, auth_user["user_id"])
 
 
+@feed_formulation_router.post(
+    "/feed/formulation/{formulation_id}/versions",
+    response_model=FeedFormulationUpdateResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a formulation version",
+    description=(
+        "Create the next immutable snapshot from the current latest formulation "
+        "version. Stale version identifiers are rejected."
+    ),
+    responses={
+        **OWNED_RESOURCE_RESPONSES,
+        409: {
+            "model": DetailResponse,
+            "description": "A newer formulation version already exists.",
+        },
+    },
+)
 @feed_formulation_router.put(
     "/feed/formulation/update/{formulation_id}",
     response_model=FeedFormulationUpdateResponse,
-    status_code=status.HTTP_200_OK,
-    summary="Update a saved formulation",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a formulation version (deprecated path)",
     description=(
-        "Replace the name, description, and stored payload of a formulation owned "
-        "by the authenticated user."
+        "Deprecated compatibility path for creating the next immutable formulation "
+        "version. No existing snapshot is edited."
     ),
-    responses=OWNED_RESOURCE_RESPONSES,
+    responses={
+        **OWNED_RESOURCE_RESPONSES,
+        409: {
+            "model": DetailResponse,
+            "description": "A newer formulation version already exists.",
+        },
+    },
+    deprecated=True,
 )
-def update_formulation(
+def create_formulation_version(
     formulation_id: int,
     payload: FeedFormulationWithPayloadRequest,
     auth_user: dict = Depends(get_licensed_user),
     service: FeedFormulationService = Depends(get_feed_formulation_service),
 ):
-    return service.update(formulation_id, payload, auth_user["user_id"])
+    return service.create_version(formulation_id, payload, auth_user["user_id"])
+
+
+@feed_formulation_router.get(
+    "/feed/formulation/{formulation_id}/versions",
+    response_model=list[FeedFormulationResponse],
+    status_code=status.HTTP_200_OK,
+    summary="List formulation versions",
+    description=(
+        "Return every remaining immutable snapshot in the owned formulation series, "
+        "ordered from newest to oldest."
+    ),
+    responses=OWNED_RESOURCE_RESPONSES,
+)
+def get_formulation_versions(
+    formulation_id: int,
+    auth_user: dict = Depends(get_licensed_user),
+    service: FeedFormulationService = Depends(get_feed_formulation_service),
+):
+    return service.list_versions(formulation_id, auth_user["user_id"])
 
 
 @feed_formulation_router.get(
@@ -126,7 +176,7 @@ def update_formulation(
     status_code=status.HTTP_200_OK,
     summary="List my saved formulations",
     description=(
-        "Compatibility endpoint returning the same authenticated-user formulation "
+        "Compatibility endpoint returning the same latest-version formulation "
         "collection as `/feed/formulation/all`."
     ),
     responses=PROTECTED_RESPONSES,

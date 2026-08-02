@@ -22,12 +22,16 @@ auth_router = APIRouter(tags=["Authentication"])
     summary="Register a user",
     description=(
         "Create an active user account with a unique username and email address. "
-        "The password is stored as a one-way bcrypt hash. A valid optional referral "
-        "code links the new account to its referrer, and registration starts a "
-        "14-day Starter trial."
+        "The password is stored as a one-way bcrypt hash. Registration links the "
+        "account to its device and starts a device-bound 14-day Starter trial. A "
+        "valid optional referral code links the new account to its referrer."
     ),
     responses={
         400: {"model": DetailResponse, "description": "Username or email already exists."},
+        409: {
+            "model": DetailResponse,
+            "description": "Installation is already registered to another account.",
+        },
         **VALIDATION_RESPONSE,
     },
 )
@@ -43,13 +47,15 @@ def register_user(
     response_model=TokenResponse | OTPChallengeResponse,
     summary="Authenticate a user",
     description=(
-        "Validate username, password, and required installation identity. The first "
-        "device claims the account trial. Returns a device-bound Bearer JWT "
-        "immediately when OTP is disabled, otherwise returns a short-lived OTP "
-        "session challenge."
+        "Validate a username or email address and password against the device linked "
+        "during registration. Returns a device-bound Bearer JWT immediately when OTP "
+        "is disabled, otherwise returns a short-lived OTP session challenge."
     ),
     responses={
-        401: {"model": DetailResponse, "description": "Invalid username or password."},
+        401: {
+            "model": DetailResponse,
+            "description": "Invalid username/email or password.",
+        },
         **VALIDATION_RESPONSE,
     },
 )

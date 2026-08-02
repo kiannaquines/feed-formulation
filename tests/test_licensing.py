@@ -47,13 +47,10 @@ def ingredient_payload(name: str) -> dict:
     }
 
 
-def login_payload(username: str, installation_id: str, name: str) -> dict:
+def login_payload(username: str) -> dict:
     return {
         "username": username,
         "password": "password123",
-        "installation_id": installation_id,
-        "device_name": name,
-        "device_type": "laptop",
     }
 
 
@@ -66,23 +63,22 @@ def test_registration_creates_trial_referral_code_and_binds_first_device(
             "username": "trial-user",
             "email": "trial-user@example.com",
             "password": "password123",
+            "installation_id": "7cc806c3-bff2-4606-8414-55b6e6448e83",
+            "device_name": "Trial laptop",
+            "device_type": "laptop",
         },
     )
     user = db_session.scalar(select(User).where(User.username == "trial-user"))
     trial = db_session.scalar(
         select(DeviceLicense).where(DeviceLicense.user_id == user.id)
     )
+    device = db_session.get(Device, trial.device_id)
 
     logged_in = client.post(
         "/api/v1/auth/login",
-        json=login_payload(
-            "trial-user",
-            "7cc806c3-bff2-4606-8414-55b6e6448e83",
-            "Trial laptop",
-        ),
+        json=login_payload("trial-user"),
     )
     db_session.refresh(trial)
-    device = db_session.get(Device, trial.device_id)
 
     assert registered.status_code == 200
     assert len(user.referral_code) == 12
@@ -99,6 +95,9 @@ def test_invalid_referral_rolls_back_registration(client, db_session):
             "username": "invalid-referral",
             "email": "invalid-referral@example.com",
             "password": "password123",
+            "installation_id": "6fca7c83-2ee7-4638-9564-74ef12bd5930",
+            "device_name": "Invalid referral laptop",
+            "device_type": "laptop",
             "referral_code": "MISSING1",
         },
     )

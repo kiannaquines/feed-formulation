@@ -50,7 +50,9 @@ def _get_secret(name: str) -> str:
     return value
 
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app_database.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is required")
 JWT_SECRET_KEY = _get_secret("JWT_SECRET_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRATION_HOURS = _get_positive_int("JWT_EXPIRATION_HOURS", 24)

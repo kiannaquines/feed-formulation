@@ -57,7 +57,7 @@ class AuthenticationService:
 
         def create_account() -> None:
             self.users.add(user)
-            self.licensing.initialize_account(user, data.referral_code)
+            self.licensing.initialize_account(user, data)
 
         self._commit(create_account)
         return {
@@ -89,11 +89,13 @@ class AuthenticationService:
         }
 
     def login(self, data: UserLogin) -> dict:
-        user = self._read(lambda: self.users.get_active_by_username(data.username))
+        user = self._read(
+            lambda: self.users.get_active_by_username_or_email(data.username)
+        )
         if not user or not verify_password(data.password, user.password_hash):
-            raise AuthenticationError("Invalid username or password")
+            raise AuthenticationError("Invalid username/email or password")
 
-        device = self.licensing.register_login_device(user, data)
+        device = self.licensing.get_login_device(user)
 
         if not OTP_IS_ENABLED:
             user.last_login_at = datetime.utcnow()

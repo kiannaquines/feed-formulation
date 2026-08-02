@@ -5,9 +5,10 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 import services.authentication_service as authentication_service_module
+import services.system_service as system_service_module
 from core.authentication import hash_password
 from core.exceptions import OptimizationError, PersistenceError, ValidationError
-from models.models import User
+from models.models import Device, User
 from repositories import (
     IngredientRepository,
     LicensingRepository,
@@ -26,6 +27,7 @@ from services import (
     IngredientService,
     LicensingService,
 )
+from services.system_service import SystemService
 
 
 def ingredient_payload(name: str = "Corn") -> dict:
@@ -44,6 +46,40 @@ def ingredient_payload(name: str = "Corn") -> dict:
         "m_c": 1,
         "is_available": True,
     }
+
+
+def test_system_health_reports_database_connectivity(monkeypatch):
+    db = Mock(spec=Session)
+    monkeypatch.setattr(system_service_module.psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(
+        system_service_module.psutil,
+        "virtual_memory",
+        lambda: Mock(percent=20),
+    )
+
+    result = SystemService().health(db)
+
+    assert result["status"] == "healthy"
+    assert result["details"]["database_status"] == "healthy"
+    assert result["details"]["database_latency_ms"] >= 0
+    assert str(db.execute.call_args.args[0]) == "SELECT 1"
+
+
+def test_system_health_is_unhealthy_when_database_check_fails(monkeypatch):
+    db = Mock(spec=Session)
+    db.execute.side_effect = SQLAlchemyError("connection failed")
+    monkeypatch.setattr(system_service_module.psutil, "cpu_percent", lambda interval: 10)
+    monkeypatch.setattr(
+        system_service_module.psutil,
+        "virtual_memory",
+        lambda: Mock(percent=20),
+    )
+
+    result = SystemService().health(db)
+
+    assert result["status"] == "unhealthy"
+    assert result["details"]["database_status"] == "unhealthy"
+    assert result["details"]["database_latency_ms"] is None
 
 
 def test_ingredient_service_commits_mutation(db_session, user_factory):
@@ -187,6 +223,15 @@ def test_authentication_service_completes_otp_flow(db_session, monkeypatch):
         is_active=True,
     )
     db_session.add(user)
+    db_session.flush()
+    db_session.add(
+        Device(
+            user_id=user.id,
+            installation_id="efb1c97b-1db1-47d3-a3c4-26eef161578a",
+            name="OTP laptop",
+            device_type="laptop",
+        )
+    )
     db_session.commit()
     service = AuthenticationService(
         db_session,
@@ -199,9 +244,6 @@ def test_authentication_service_completes_otp_flow(db_session, monkeypatch):
         UserLogin(
             username=user.username,
             password="password123",
-            installation_id="efb1c97b-1db1-47d3-a3c4-26eef161578a",
-            device_name="OTP laptop",
-            device_type="laptop",
         )
     )
     verified = service.verify_otp(

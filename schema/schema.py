@@ -11,17 +11,17 @@ class UserRegister(BaseModel):
     username: str
     email: EmailStr
     password: str
+    installation_id: UUID
+    device_name: str = Field(min_length=1, max_length=120)
+    device_type: Literal["phone", "laptop", "desktop"]
     referral_code: str | None = Field(default=None, min_length=6, max_length=16)
 
 
 class UserLogin(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    username: str
+    username: str = Field(description="Registered username or email address")
     password: str
-    installation_id: UUID
-    device_name: str = Field(min_length=1, max_length=120)
-    device_type: Literal["phone", "laptop", "desktop"]
 
 
 class OTPVerification(BaseModel):
@@ -228,6 +228,10 @@ class FeedFormulationResponse(BaseModel):
     formulation_name: str | None
     formulation_description: str | None
     user_id: int
+    series_id: int
+    parent_version_id: int | None
+    version_number: int
+    created_at: datetime
     payload: dict
 
 
@@ -280,6 +284,8 @@ class HealthDetailsResponse(BaseModel):
     hostname: str
     cpu_usage_percent: float
     memory_usage_percent: float
+    database_status: Literal["healthy", "unhealthy"]
+    database_latency_ms: float | None
 
 
 class HealthResponse(BaseModel):
@@ -355,6 +361,35 @@ class OptimizationFailureResponse(BaseModel):
     detail: str
     error_details: OptimizationErrorDetailsResponse
     formulation_feasible: Literal[False]
+
+
+class FailedIngredientCompositionResponse(IngredientCompositionResponse):
+    status: Literal["excluded", "included", "at_minimum", "at_maximum"]
+    issues: list[
+        Literal["minimum_bound_active", "maximum_bound_active"]
+    ]
+
+
+class ConstraintDiagnosticResponse(BaseModel):
+    achieved: float
+    required: float
+    difference: float
+    status: Literal["met", "under", "over"]
+
+
+class FailedFormulationSummaryResponse(BaseModel):
+    total_ingredient_percentage: float
+    active_ingredients_count: int
+    cost_per_kg: float
+    normalized_violation_score: float
+    formulation_feasible: Literal[False]
+
+
+class OptimizationV2FailureResponse(OptimizationFailureResponse):
+    ingredient_composition: list[FailedIngredientCompositionResponse]
+    constraint_diagnostics: dict[str, ConstraintDiagnosticResponse]
+    failed_constraints: list[str]
+    summary: FailedFormulationSummaryResponse
 
 
 class PlanResponse(BaseModel):

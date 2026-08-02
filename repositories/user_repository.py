@@ -12,13 +12,16 @@ class UserRepository:
 
     def get_by_username_or_email(self, username: str, email: str) -> User | None:
         statement = select(User).where(
-            or_(User.username == username, User.email == email)
+            or_(
+                User.username.in_((username, email)),
+                User.email.in_((username, email)),
+            )
         )
         return self.db.scalar(statement)
 
-    def get_active_by_username(self, username: str) -> User | None:
+    def get_active_by_username_or_email(self, identifier: str) -> User | None:
         statement = select(User).where(
-            User.username == username,
+            or_(User.username == identifier, User.email == identifier),
             User.is_active.is_(True),
         )
         return self.db.scalar(statement)

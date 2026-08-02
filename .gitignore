@@ -1,5 +1,6 @@
 env
 app_database.db
+app_database.sqlite.backup
 .env
 __pycache__/
 .pytest_cache/

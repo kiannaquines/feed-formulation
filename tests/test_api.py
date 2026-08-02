@@ -1,7 +1,12 @@
 from sqlalchemy import select
 
 from core.authentication import create_jwt_token
-from models.models import FeedFormulation, Ingredient, NutrientRequirements
+from models.models import (
+    FeedFormulation,
+    FormulationSeries,
+    Ingredient,
+    NutrientRequirements,
+)
 
 
 def auth_header(user) -> dict:
@@ -38,6 +43,24 @@ def nutrient_payload(name: str = "Layer") -> dict:
     }
 
 
+def test_health_includes_database_status(client):
+    response = client.get("/api/v1/health")
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "healthy"
+    assert response.json()["details"]["database_status"] == "healthy"
+    assert response.json()["details"]["database_latency_ms"] >= 0
+
+
+def test_api_uses_feedprime_identity(client):
+    root = client.get("/api/v1/")
+    document = client.get("/openapi.json").json()
+
+    assert root.status_code == 200
+    assert root.json()["message"] == "Welcome to the FeedPrime API!"
+    assert document["info"]["title"] == "FeedPrime API"
+
+
 def test_protected_endpoint_requires_token(client):
     response = client.get("/api/v1/ingredients/all")
 
@@ -49,18 +72,36 @@ def test_registration_login_and_invalid_token(client):
         "username": "new-user",
         "email": "new-user@example.com",
         "password": "password123",
+        "installation_id": "2a4f56ef-a930-4934-a283-a6e476a6607a",
+        "device_name": "Main laptop",
+        "device_type": "laptop",
     }
 
     registered = client.post("/api/v1/auth/register", json=registration)
     duplicate = client.post("/api/v1/auth/register", json=registration)
+    conflicting_identifier = client.post(
+        "/api/v1/auth/register",
+        json={
+            "username": "new-user@example.com",
+            "email": "different@example.com",
+            "password": "password123",
+            "installation_id": "bf23f020-4716-4ae6-a98f-b1157c55470c",
+            "device_name": "Conflicting laptop",
+            "device_type": "laptop",
+        },
+    )
     logged_in = client.post(
         "/api/v1/auth/login",
         json={
             "username": "new-user",
             "password": "password123",
-            "installation_id": "2a4f56ef-a930-4934-a283-a6e476a6607a",
-            "device_name": "Main laptop",
-            "device_type": "laptop",
+        },
+    )
+    logged_in_by_email = client.post(
+        "/api/v1/auth/login",
+        json={
+            "username": "new-user@example.com",
+            "password": "password123",
         },
     )
     invalid_token = client.get(
@@ -70,8 +111,11 @@ def test_registration_login_and_invalid_token(client):
 
     assert registered.status_code == 200
     assert duplicate.status_code == 400
+    assert conflicting_identifier.status_code == 400
     assert logged_in.status_code == 200
     assert logged_in.json()["token_type"] == "bearer"
+    assert logged_in_by_email.status_code == 200
+    assert logged_in_by_email.json()["token_type"] == "bearer"
     assert invalid_token.status_code == 401
 
 
@@ -123,11 +167,16 @@ def test_formulation_owner_comes_from_jwt_and_lists_are_scoped(
 ):
     owner = user_factory("owner")
     other = user_factory("other")
+    other_series = FormulationSeries(user_id=other.id)
+    db_session.add(other_series)
+    db_session.flush()
     db_session.add(
         FeedFormulation(
             formulation_name="Other",
             formulation_description="Other",
             user_id=other.id,
+            series_id=other_series.id,
+            version_number=1,
             payload={},
         )
     )
@@ -153,6 +202,7 @@ def test_formulation_owner_comes_from_jwt_and_lists_are_scoped(
     )
 
     assert created.status_code == 201
+    assert created.json()["formulation"]["version_number"] == 1
     assert [item["formulation_name"] for item in listed.json()] == ["Mine"]
     assert listed.json()[0]["user_id"] == owner.id
     assert rejected_owner.status_code == 422
@@ -231,6 +281,7 @@ def test_openapi_contains_detailed_operation_and_response_documentation(client):
         "System",
         "Authentication",
         "Feed Formulation",
+        "Feed Formulation V2",
         "Ingredients",
         "Nutrient Requirements",
         "Licensing",
