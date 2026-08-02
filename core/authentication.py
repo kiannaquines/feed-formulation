@@ -4,7 +4,6 @@ from passlib.context import CryptContext
 from fastapi import HTTPException, status, Depends
 import jwt
 
-from api.deps import get_db_connection
 from .config import JWT_SECRET_KEY, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
@@ -46,21 +45,3 @@ def verify_jwt_token(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
         )
-
-async def get_current_user_from_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Get current user from JWT token"""
-    payload = verify_jwt_token(credentials.credentials)
-    user_id = payload.get("user_id")
-    
-    with get_db_connection() as conn:
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM users WHERE id = ? AND is_active = TRUE", (user_id,))
-        user = cursor.fetchone()
-        
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User not found or inactive"
-            )
-        
-        return dict(user)
