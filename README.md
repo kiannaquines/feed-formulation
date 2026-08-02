@@ -15,7 +15,7 @@ offline payment is verified:
 | Plan | Monthly price | Saved ingredients | Saved requirements |
 | --- | ---: | ---: | ---: |
 | Starter | PHP 35,000 | 10 | 10 |
-| Premium | PHP 35,000 | 50 | 50 |
+| Premium | PHP 45,000 | 50 | 50 |
 | Ultra | PHP 50,000 | Unlimited | Unlimited |
 
 Formulation calculation and saved formulations are unlimited while the device has
