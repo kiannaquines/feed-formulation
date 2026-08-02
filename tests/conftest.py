@@ -1,0 +1,133 @@
+import os
+
+os.environ.setdefault("DATABASE_URL", "sqlite://")
+os.environ.setdefault("JWT_SECRET_KEY", "a" * 64)
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from db.database import get_db
+from main import app
+from datetime import datetime, timedelta
+from uuid import uuid4
+
+from models.models import (
+    Base,
+    Device,
+    DeviceLicense,
+    PricingPlan,
+    PricingPlanVersion,
+    User,
+)
+
+
+def seed_pricing(session: Session) -> None:
+    now = datetime.utcnow()
+    for code, name, price, ingredient_limit, requirement_limit in [
+        ("starter", "Starter", 35_000, 10, 10),
+        ("premium", "Premium", 45_000, 50, 50),
+        ("ultra", "Ultra", 50_000, None, None),
+    ]:
+        plan = PricingPlan(
+            code=code,
+            name=name,
+            currency="PHP",
+            duration_days=30,
+            created_at=now,
+        )
+        session.add(plan)
+        session.flush()
+        session.add(
+            PricingPlanVersion(
+                plan_id=plan.id,
+                version_number=1,
+                monthly_price=price,
+                ingredient_limit=ingredient_limit,
+                requirement_limit=requirement_limit,
+                formulation_limit=None,
+                effective_at=now,
+                created_at=now,
+            )
+        )
+    session.commit()
+
+
+@pytest.fixture
+def db_session() -> Session:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    testing_session = sessionmaker(bind=engine)
+    session = testing_session()
+    seed_pricing(session)
+    try:
+        yield session
+    finally:
+        session.close()
+        Base.metadata.drop_all(engine)
+        engine.dispose()
+
+
+@pytest.fixture
+def client(db_session: Session) -> TestClient:
+    def override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        with TestClient(app) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def user_factory(db_session: Session):
+    def create_user(username: str) -> User:
+        starter_version_id = db_session.scalar(
+            select(PricingPlanVersion.id)
+            .join(PricingPlan, PricingPlan.id == PricingPlanVersion.plan_id)
+            .where(PricingPlan.code == "starter")
+        )
+        user = User(
+            username=username,
+            email=f"{username}@example.com",
+            password_hash="unused",
+            otp_secret="secret",
+            is_active=True,
+        )
+        db_session.add(user)
+        db_session.flush()
+        device = Device(
+            user_id=user.id,
+            installation_id=str(uuid4()),
+            name=f"{username} laptop",
+            device_type="laptop",
+        )
+        db_session.add(device)
+        db_session.flush()
+        db_session.add(
+            DeviceLicense(
+                user_id=user.id,
+                device_id=device.id,
+                pricing_plan_version_id=starter_version_id,
+                plan_code="starter",
+                license_type="trial",
+                status="active",
+                starts_at=datetime.utcnow(),
+                expires_at=datetime.utcnow() + timedelta(days=14),
+                price_php=0,
+            )
+        )
+        db_session.commit()
+        db_session.refresh(user)
+        user.test_device_id = device.id
+        return user
+
+    return create_user
