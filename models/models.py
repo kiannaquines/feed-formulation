@@ -60,12 +60,58 @@ class Device(Base):
     last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class PricingPlan(Base):
+    __tablename__ = "pricing_plans"
+
+    id = Column(Integer, primary_key=True, index=True)
+    code = Column(String(20), unique=True, nullable=False, index=True)
+    name = Column(String(50), nullable=False)
+    currency = Column(String(3), nullable=False, default="PHP")
+    duration_days = Column(Integer, nullable=False, default=30)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class PricingPlanVersion(Base):
+    __tablename__ = "pricing_plan_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "plan_id", "version_number", name="uq_pricing_plan_versions_plan_version"
+        ),
+        CheckConstraint("monthly_price > 0", name="ck_pricing_monthly_price_positive"),
+        CheckConstraint(
+            "ingredient_limit IS NULL OR ingredient_limit > 0",
+            name="ck_pricing_ingredient_limit_positive",
+        ),
+        CheckConstraint(
+            "requirement_limit IS NULL OR requirement_limit > 0",
+            name="ck_pricing_requirement_limit_positive",
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    plan_id = Column(Integer, ForeignKey("pricing_plans.id"), nullable=False, index=True)
+    version_number = Column(Integer, nullable=False)
+    monthly_price = Column(Integer, nullable=False)
+    ingredient_limit = Column(Integer, nullable=True)
+    requirement_limit = Column(Integer, nullable=True)
+    formulation_limit = Column(Integer, nullable=True)
+    effective_at = Column(DateTime, nullable=False)
+    created_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class DeviceLicense(Base):
     __tablename__ = "device_licenses"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=True, index=True)
+    pricing_plan_version_id = Column(
+        Integer,
+        ForeignKey("pricing_plan_versions.id"),
+        nullable=False,
+        index=True,
+    )
     plan_code = Column(String(20), nullable=False)
     license_type = Column(String(20), nullable=False)
     status = Column(String(20), default="active", nullable=False)

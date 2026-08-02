@@ -10,6 +10,7 @@ from repositories import (
     LicensingRepository,
     NutrientRequirementRepository,
     OTPSessionRepository,
+    PricingRepository,
     UserRepository,
 )
 from services import (
@@ -21,6 +22,8 @@ from services import (
     IngredientService,
     LicensingService,
     NutrientRequirementService,
+    AdminPricingService,
+    PricingService,
 )
 
 security = HTTPBearer()
@@ -63,6 +66,16 @@ def get_admin_licensing_service(
     db: Session = Depends(get_db),
 ) -> AdminLicensingService:
     return AdminLicensingService(db, LicensingRepository(db), UserRepository(db))
+
+
+def get_pricing_service(db: Session = Depends(get_db)) -> PricingService:
+    return PricingService(db, PricingRepository(db))
+
+
+def get_admin_pricing_service(
+    db: Session = Depends(get_db),
+) -> AdminPricingService:
+    return AdminPricingService(db, PricingRepository(db))
 
 
 def get_ingredient_service(db: Session = Depends(get_db)) -> IngredientService:

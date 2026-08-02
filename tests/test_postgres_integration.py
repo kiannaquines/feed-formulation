@@ -21,15 +21,27 @@ from models.models import (
     FeedFormulation,
     FormulationSeries,
     Ingredient,
+    PricingPlan,
+    PricingPlanVersion,
     User,
 )
 from repositories import (
     FeedFormulationRepository,
     IngredientRepository,
     LicensingRepository,
+    PricingRepository,
 )
-from schema.schema import FeedFormulationWithPayloadRequest, IngredientCreate
-from services import FeedFormulationService, IngredientService, LicensingService
+from schema.schema import (
+    FeedFormulationWithPayloadRequest,
+    IngredientCreate,
+    PricingPlanVersionCreate,
+)
+from services import (
+    AdminPricingService,
+    FeedFormulationService,
+    IngredientService,
+    LicensingService,
+)
 
 
 TEST_DATABASE_URL = os.getenv("TEST_DATABASE_URL")
@@ -40,6 +52,8 @@ APPLICATION_TABLES = [
     "license_payments",
     "license_events",
     "device_licenses",
+    "pricing_plan_versions",
+    "pricing_plans",
     "otp_sessions",
     "formulations",
     "formulation_series",
@@ -85,6 +99,7 @@ def clean_postgres(postgres_engine):
     table_list = ", ".join(f'"{name}"' for name in APPLICATION_TABLES)
     with postgres_engine.begin() as connection:
         connection.execute(text(f"TRUNCATE TABLE {table_list} RESTART IDENTITY CASCADE"))
+    seed_postgres_pricing(postgres_engine)
     try:
         yield
     finally:
@@ -92,6 +107,39 @@ def clean_postgres(postgres_engine):
             connection.execute(
                 text(f"TRUNCATE TABLE {table_list} RESTART IDENTITY CASCADE")
             )
+        seed_postgres_pricing(postgres_engine)
+
+
+def seed_postgres_pricing(engine) -> None:
+    testing_session = sessionmaker(bind=engine)
+    now = datetime.utcnow()
+    with testing_session() as session:
+        for code, name, price, ingredient_limit, requirement_limit in [
+            ("starter", "Starter", 35_000, 10, 10),
+            ("premium", "Premium", 35_000, 50, 50),
+            ("ultra", "Ultra", 50_000, None, None),
+        ]:
+            plan = PricingPlan(
+                code=code,
+                name=name,
+                currency="PHP",
+                duration_days=30,
+                created_at=now,
+            )
+            session.add(plan)
+            session.flush()
+            session.add(
+                PricingPlanVersion(
+                    plan_id=plan.id,
+                    version_number=1,
+                    monthly_price=price,
+                    ingredient_limit=ingredient_limit,
+                    requirement_limit=requirement_limit,
+                    effective_at=now,
+                    created_at=now,
+                )
+            )
+        session.commit()
 
 
 def formulation_payload(revision: int) -> dict:
@@ -124,7 +172,7 @@ def test_postgres_alembic_upgrade_reaches_head(postgres_engine):
     with postgres_engine.connect() as connection:
         revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
 
-    assert revision == "e8b6a31f0c42"
+    assert revision == "c7d2f8a19e04"
 
 
 def test_postgres_registration_email_login_and_health(postgres_engine):
@@ -232,6 +280,11 @@ def test_postgres_serializes_concurrent_formulation_versions(postgres_engine):
 def test_postgres_serializes_concurrent_starter_quota(postgres_engine):
     testing_session = sessionmaker(bind=postgres_engine)
     with testing_session() as session:
+        starter_version_id = session.scalar(
+            select(PricingPlanVersion.id)
+            .join(PricingPlan, PricingPlan.id == PricingPlanVersion.plan_id)
+            .where(PricingPlan.code == "starter")
+        )
         user = User(
             username="postgres-quota",
             email="postgres-quota@example.com",
@@ -252,6 +305,7 @@ def test_postgres_serializes_concurrent_starter_quota(postgres_engine):
             DeviceLicense(
                 user_id=user.id,
                 device_id=device.id,
+                pricing_plan_version_id=starter_version_id,
                 plan_code="starter",
                 license_type="trial",
                 status="active",
@@ -302,3 +356,51 @@ def test_postgres_serializes_concurrent_starter_quota(postgres_engine):
 
     assert sorted(results) == ["created", "quota"]
     assert total == 10
+
+
+def test_postgres_serializes_concurrent_pricing_versions(postgres_engine):
+    testing_session = sessionmaker(bind=postgres_engine)
+    with testing_session() as session:
+        admin = User(
+            username="postgres-pricing-admin",
+            email="postgres-pricing-admin@example.com",
+            password_hash="unused",
+            otp_secret="secret",
+            is_superuser=True,
+        )
+        session.add(admin)
+        session.commit()
+        admin_id = admin.id
+
+    barrier = Barrier(2)
+
+    def publish(price: int) -> int:
+        with testing_session() as session:
+            service = AdminPricingService(session, PricingRepository(session))
+            barrier.wait()
+            result = service.publish(
+                "starter",
+                PricingPlanVersionCreate(
+                    monthly_price=price,
+                    ingredient_limit=10,
+                    requirement_limit=10,
+                ),
+                admin_id,
+            )
+            return result["version_number"]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        versions = list(executor.map(publish, [36_000, 37_000]))
+
+    with testing_session() as session:
+        stored_versions = list(
+            session.scalars(
+                select(PricingPlanVersion)
+                .join(PricingPlan, PricingPlan.id == PricingPlanVersion.plan_id)
+                .where(PricingPlan.code == "starter")
+                .order_by(PricingPlanVersion.version_number)
+            ).all()
+        )
+
+    assert sorted(versions) == [2, 3]
+    assert [version.version_number for version in stored_versions] == [1, 2, 3]

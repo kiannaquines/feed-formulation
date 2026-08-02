@@ -13,9 +13,11 @@ from sqlalchemy.engine import Connection, Engine, make_url
 load_dotenv()
 
 
-ALEMBIC_HEAD = "e8b6a31f0c42"
+ALEMBIC_HEAD = "c7d2f8a19e04"
 TABLES = [
     "users",
+    "pricing_plans",
+    "pricing_plan_versions",
     "ingredients",
     "nutrient_requirements",
     "devices",
@@ -28,6 +30,7 @@ TABLES = [
     "referrals",
     "referral_credits",
 ]
+SEEDED_TARGET_TABLES = {"pricing_plans", "pricing_plan_versions"}
 
 
 def parse_args() -> argparse.Namespace:
@@ -98,7 +101,7 @@ def require_empty_target(
     populated = []
     for name in TABLES:
         count = connection.scalar(select(func.count()).select_from(tables[name]))
-        if count:
+        if count and name not in SEEDED_TARGET_TABLES:
             populated.append(f"{name}={count}")
     if populated:
         raise RuntimeError(
@@ -191,6 +194,8 @@ def main() -> None:
 
         with target_engine.begin() as target_connection:
             require_empty_target(target_connection, target_tables)
+            target_connection.execute(target_tables["pricing_plan_versions"].delete())
+            target_connection.execute(target_tables["pricing_plans"].delete())
             for name in TABLES:
                 if source_rows[name]:
                     target_connection.execute(

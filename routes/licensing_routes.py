@@ -32,8 +32,12 @@ admin_licensing_router = APIRouter(tags=["License Administration"])
 @licensing_router.get(
     "/licensing/plans",
     response_model=list[PlanResponse],
-    summary="List licensing plans",
-    description="Return the annual per-device PHP prices and storage quotas.",
+    deprecated=True,
+    summary="List monthly licensing plans",
+    description=(
+        "Deprecated alias for /pricing/plans. Return current monthly per-device "
+        "PHP prices and storage quotas."
+    ),
 )
 def get_plans(
     service: LicensingService = Depends(get_licensing_service),
@@ -137,7 +141,7 @@ def list_licenses(
     status_code=status.HTTP_201_CREATED,
     summary="Activate a paid device license",
     description=(
-        "Record an offline annual payment and activate one plan for one owned device."
+        "Record an offline monthly payment and activate one plan for one owned device."
     ),
     responses={**PROTECTED_RESPONSES, **VALIDATION_RESPONSE},
 )
@@ -160,8 +164,7 @@ def activate_license(
     response_model=LicenseResponse,
     summary="Renew a paid device license",
     description=(
-        "Record a new offline payment and add 365 days, optionally changing tier "
-        "at the renewal boundary."
+        "Record a new offline payment and add 30 days, optionally changing tier."
     ),
     responses={**PROTECTED_RESPONSES, **VALIDATION_RESPONSE},
 )

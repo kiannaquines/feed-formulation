@@ -286,6 +286,8 @@ def test_openapi_contains_detailed_operation_and_response_documentation(client):
         "Nutrient Requirements",
         "Licensing",
         "License Administration",
+        "Pricing",
+        "Pricing Administration",
     }
     assert all(operation.get("summary") for operation in operations)
     assert all(operation.get("description") for operation in operations)

@@ -14,9 +14,9 @@ from core.exceptions import (
     QuotaExceededError,
     ValidationError,
 )
-from core.licensing import LICENSE_DAYS, PLANS, REFERRAL_BONUS_DAYS, TRIAL_DAYS
+from core.licensing import REFERRAL_BONUS_DAYS, TRIAL_DAYS
 from models.models import Device, DeviceLicense, Referral, ReferralCredit, User
-from repositories import LicensingRepository, UserRepository
+from repositories import LicensingRepository, PricingRepository, UserRepository
 from schema.schema import UserRegister
 
 
@@ -26,10 +26,12 @@ class LicensingService:
         db: Session,
         licensing: LicensingRepository,
         users: UserRepository | None = None,
+        pricing: PricingRepository | None = None,
     ):
         self.db = db
         self.licensing = licensing
         self.users = users or UserRepository(db)
+        self.pricing = pricing or PricingRepository(db)
 
     def initialize_account(
         self, user: User, data: UserRegister, current_time: datetime | None = None
@@ -57,10 +59,12 @@ class LicensingService:
                 last_seen_at=now,
             )
         )
+        starter_plan = self._current_plan("starter")
         trial = self._add(
             DeviceLicense(
                 user_id=user.id,
                 device_id=device.id,
+                pricing_plan_version_id=starter_plan[1].id,
                 plan_code="starter",
                 license_type="trial",
                 status="active",
@@ -103,32 +107,20 @@ class LicensingService:
             raise LicenseRequiredError(
                 "An active trial or paid license is required for this device"
             )
-        plan = PLANS[license_record.plan_code]
+        plan = self._plan_for_license(license_record)
         if resource == "ingredients":
             used = self.licensing.count_owned_ingredients(user_id)
-            limit = plan.ingredient_limit
+            limit = plan[1].ingredient_limit
         else:
             used = self.licensing.count_owned_requirements(user_id)
-            limit = plan.requirement_limit
+            limit = plan[1].requirement_limit
         if limit is not None and used >= limit:
             raise QuotaExceededError(
-                f"The {plan.name} plan allows up to {limit} saved {resource}"
+                f"The {plan[0].name} plan allows up to {limit} saved {resource}"
             )
 
     def plans(self) -> list[dict]:
-        return [
-            {
-                "code": plan.code,
-                "name": plan.name,
-                "currency": "PHP",
-                "annual_price": plan.price_php,
-                "duration_days": LICENSE_DAYS,
-                "ingredient_limit": plan.ingredient_limit,
-                "requirement_limit": plan.requirement_limit,
-                "formulation_limit": None,
-            }
-            for plan in PLANS.values()
-        ]
+        return [self._plan_response(*row) for row in self._read(self.pricing.list_current)]
 
     def status(self, auth_user: dict) -> dict:
         now = datetime.utcnow()
@@ -147,10 +139,10 @@ class LicensingService:
         )
         if active_license:
             state = "active"
-            plan = PLANS[active_license.plan_code]
+            plan = self._plan_for_license(active_license)
         elif license_record:
             state = "expired"
-            plan = PLANS[license_record.plan_code]
+            plan = self._plan_for_license(license_record)
         else:
             state = "unlicensed"
             plan = None
@@ -160,11 +152,11 @@ class LicensingService:
             "license": license_record,
             "ingredients": {
                 "used": self.licensing.count_owned_ingredients(auth_user["user_id"]),
-                "limit": plan.ingredient_limit if plan else None,
+                "limit": plan[1].ingredient_limit if plan else None,
             },
             "requirements": {
                 "used": self.licensing.count_owned_requirements(auth_user["user_id"]),
-                "limit": plan.requirement_limit if plan else None,
+                "limit": plan[1].requirement_limit if plan else None,
             },
         }
 
@@ -232,6 +224,37 @@ class LicensingService:
                 return code
         raise PersistenceError("Could not generate a unique referral code")
 
+    def _current_plan(self, code: str):
+        plan = self._read(lambda: self.pricing.get_current_by_code(code))
+        if not plan:
+            raise PersistenceError(f"Pricing plan {code!r} is unavailable")
+        return plan
+
+    def _plan_for_license(self, license_record: DeviceLicense):
+        plan = self._read(
+            lambda: self.pricing.get_plan_and_version(
+                license_record.pricing_plan_version_id
+            )
+        )
+        if not plan:
+            raise PersistenceError("License pricing version is unavailable")
+        return plan
+
+    @staticmethod
+    def _plan_response(plan, version) -> dict:
+        return {
+            "code": plan.code,
+            "name": plan.name,
+            "currency": plan.currency,
+            "monthly_price": version.monthly_price,
+            "duration_days": plan.duration_days,
+            "ingredient_limit": version.ingredient_limit,
+            "requirement_limit": version.requirement_limit,
+            "formulation_limit": version.formulation_limit,
+            "version_number": version.version_number,
+            "effective_at": version.effective_at,
+        }
+
     def _commit(self) -> None:
         try:
             self.db.commit()
@@ -293,29 +316,34 @@ class AdminLicensingService(LicensingService):
             raise NotFoundError("User or owned device not found")
         if self.licensing.get_active_paid_license_for_device(device_id, now):
             raise ConflictError("This device already has an active paid license")
-        plan = PLANS[plan_code]
+        plan, version = self._current_plan(plan_code)
         license_record = self._add(
             DeviceLicense(
                 user_id=user_id,
                 device_id=device_id,
+                pricing_plan_version_id=version.id,
                 plan_code=plan.code,
                 license_type="paid",
                 status="active",
                 starts_at=now,
-                expires_at=now + timedelta(days=LICENSE_DAYS),
-                price_php=plan.price_php,
+                expires_at=now + timedelta(days=plan.duration_days),
+                price_php=version.monthly_price,
                 payment_reference=payment_reference,
                 activated_by_user_id=admin_user_id,
             )
         )
         self.licensing.add_payment(
-            license_record.id, payment_reference, plan.price_php, admin_user_id
+            license_record.id, payment_reference, version.monthly_price, admin_user_id
         )
         self.licensing.add_event(
             license_record.id,
             "activated",
             admin_user_id,
-            {"plan_code": plan.code, "device_id": device_id},
+            {
+                "plan_code": plan.code,
+                "pricing_plan_version_id": version.id,
+                "device_id": device_id,
+            },
         )
         self._qualify_referral(user_id, now)
         self._commit()
@@ -333,16 +361,19 @@ class AdminLicensingService(LicensingService):
         if license_record.status == "revoked":
             raise ValidationError("Revoked licenses cannot be renewed")
         now = datetime.utcnow()
-        plan = PLANS[plan_code]
+        plan, version = self._current_plan(plan_code)
         old_expiry = license_record.expires_at
         license_record.starts_at = min(license_record.starts_at, now)
-        license_record.expires_at = max(old_expiry, now) + timedelta(days=LICENSE_DAYS)
+        license_record.expires_at = max(old_expiry, now) + timedelta(
+            days=plan.duration_days
+        )
         license_record.plan_code = plan.code
-        license_record.price_php = plan.price_php
+        license_record.pricing_plan_version_id = version.id
+        license_record.price_php = version.monthly_price
         license_record.payment_reference = payment_reference
         license_record.status = "active"
         self.licensing.add_payment(
-            license_record.id, payment_reference, plan.price_php, admin_user_id
+            license_record.id, payment_reference, version.monthly_price, admin_user_id
         )
         self.licensing.add_event(
             license_record.id,
@@ -350,6 +381,7 @@ class AdminLicensingService(LicensingService):
             admin_user_id,
             {
                 "plan_code": plan.code,
+                "pricing_plan_version_id": version.id,
                 "previous_expires_at": old_expiry.isoformat(),
             },
         )

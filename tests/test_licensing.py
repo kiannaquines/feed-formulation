@@ -14,6 +14,8 @@ from models.models import (
     LicenseEvent,
     LicensePayment,
     NutrientRequirements,
+    PricingPlan,
+    PricingPlanVersion,
     Referral,
     ReferralCredit,
     User,
@@ -52,6 +54,38 @@ def login_payload(username: str) -> dict:
         "username": username,
         "password": "password123",
     }
+
+
+def seed_pricing(session) -> dict[str, int]:
+    version_ids = {}
+    now = datetime.utcnow()
+    for code, name, price, ingredient_limit, requirement_limit in [
+        ("starter", "Starter", 35_000, 10, 10),
+        ("premium", "Premium", 35_000, 50, 50),
+        ("ultra", "Ultra", 50_000, None, None),
+    ]:
+        plan = PricingPlan(
+            code=code,
+            name=name,
+            currency="PHP",
+            duration_days=30,
+            created_at=now,
+        )
+        session.add(plan)
+        session.flush()
+        version = PricingPlanVersion(
+            plan_id=plan.id,
+            version_number=1,
+            monthly_price=price,
+            ingredient_limit=ingredient_limit,
+            requirement_limit=requirement_limit,
+            effective_at=now,
+            created_at=now,
+        )
+        session.add(version)
+        session.flush()
+        version_ids[code] = version.id
+    return version_ids
 
 
 def test_registration_creates_trial_referral_code_and_binds_first_device(
@@ -167,7 +201,17 @@ def test_premium_limit_and_ultra_unlimited_ingredient_saving(
         select(DeviceLicense).where(DeviceLicense.user_id == ultra.id)
     )
     premium_license.plan_code = "premium"
+    premium_license.pricing_plan_version_id = db_session.scalar(
+        select(PricingPlanVersion.id)
+        .join(PricingPlan, PricingPlan.id == PricingPlanVersion.plan_id)
+        .where(PricingPlan.code == "premium")
+    )
     ultra_license.plan_code = "ultra"
+    ultra_license.pricing_plan_version_id = db_session.scalar(
+        select(PricingPlanVersion.id)
+        .join(PricingPlan, PricingPlan.id == PricingPlanVersion.plan_id)
+        .where(PricingPlan.code == "ultra")
+    )
     db_session.add_all(
         [
             Ingredient(
@@ -243,6 +287,7 @@ def test_concurrent_starter_creates_cannot_exceed_quota(tmp_path):
     Base.metadata.create_all(engine)
     testing_session = sessionmaker(bind=engine)
     with testing_session() as session:
+        pricing_versions = seed_pricing(session)
         user = User(
             username="concurrent",
             email="concurrent@example.com",
@@ -263,6 +308,7 @@ def test_concurrent_starter_creates_cannot_exceed_quota(tmp_path):
             DeviceLicense(
                 user_id=user.id,
                 device_id=device.id,
+                pricing_plan_version_id=pricing_versions["starter"],
                 plan_code="starter",
                 license_type="trial",
                 status="active",
@@ -432,7 +478,7 @@ def test_license_reassignment_requires_same_owner_and_records_event(
     assert event.details["reason"] == "Replaced failed computer"
 
 
-def test_license_renewal_preserves_payment_history_and_adds_365_days(
+def test_license_renewal_preserves_payment_history_and_adds_30_days(
     client, db_session, user_factory
 ):
     admin = user_factory("renew-admin")
@@ -474,7 +520,7 @@ def test_license_renewal_preserves_payment_history_and_adds_365_days(
     assert duplicate_payment.status_code == 409
     assert renewed.json()["plan_code"] == "premium"
     assert db_session.get(DeviceLicense, license_id).expires_at == (
-        first_expiry + timedelta(days=365)
+        first_expiry + timedelta(days=30)
     )
     assert [payment.payment_reference for payment in payments] == [
         "PAY-RENEW-1",

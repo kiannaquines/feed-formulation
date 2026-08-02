@@ -19,6 +19,7 @@ from routes.feed_formulation_v2_routes import feed_formulation_v2_router
 from routes.ingredient_routes import ingredient_router
 from routes.licensing_routes import admin_licensing_router, licensing_router
 from routes.nutrient_requirements_routes import nutrient_requirements_router
+from routes.pricing_routes import admin_pricing_router, pricing_router
 from routes.root_routes import root_router
 
 app = FastAPI(
@@ -40,7 +41,7 @@ ingredient and nutrient data, and store formulation results per authenticated us
 ## Licensing
 
 New accounts receive one 14-day Starter trial on their first registered device.
-Paid Starter, Premium, and Ultra licenses are annual and assigned to one device.
+Paid Starter, Premium, and Ultra licenses cover 30 days and are assigned to one device.
 Business endpoints require an active device entitlement; account, licensing, and
 referral endpoints remain available after expiration.
 
@@ -79,6 +80,8 @@ app.include_router(root_router, prefix=API_PREFIX)
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(licensing_router, prefix=API_PREFIX)
 app.include_router(admin_licensing_router, prefix=API_PREFIX)
+app.include_router(pricing_router, prefix=API_PREFIX)
+app.include_router(admin_pricing_router, prefix=API_PREFIX)
 app.include_router(feed_formulation_router, prefix=API_PREFIX)
 app.include_router(ingredient_router, prefix=API_PREFIX)
 app.include_router(nutrient_requirements_router, prefix=API_PREFIX)

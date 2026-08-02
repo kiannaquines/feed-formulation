@@ -396,11 +396,27 @@ class PlanResponse(BaseModel):
     code: Literal["starter", "premium", "ultra"]
     name: str
     currency: Literal["PHP"]
-    annual_price: int
-    duration_days: Literal[365]
+    monthly_price: int
+    duration_days: Literal[30]
     ingredient_limit: int | None
     requirement_limit: int | None
     formulation_limit: None
+    version_number: int
+    effective_at: datetime
+
+
+class PricingPlanVersionResponse(PlanResponse):
+    id: int
+    created_by_user_id: int | None
+    created_at: datetime
+
+
+class PricingPlanVersionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    monthly_price: int = Field(gt=0)
+    ingredient_limit: int | None = Field(default=None, gt=0)
+    requirement_limit: int | None = Field(default=None, gt=0)
 
 
 class DeviceResponse(BaseModel):
@@ -421,6 +437,7 @@ class LicenseResponse(BaseModel):
     id: int
     user_id: int
     device_id: int | None
+    pricing_plan_version_id: int
     plan_code: Literal["starter", "premium", "ultra"]
     license_type: Literal["trial", "paid"]
     status: Literal["active", "revoked"]

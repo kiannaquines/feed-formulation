@@ -9,13 +9,13 @@ client installation UUID, device name, and one of the supported device types:
 `phone`, `laptop`, or `desktop`. Access tokens are bound to that registered device,
 while login requires only the username (or email address) and password.
 
-Paid licenses are annual, per-device licenses activated by a superuser after an
+Paid licenses are monthly, per-device licenses activated by a superuser after an
 offline payment is verified:
 
-| Plan | Annual price | Saved ingredients | Saved requirements |
+| Plan | Monthly price | Saved ingredients | Saved requirements |
 | --- | ---: | ---: | ---: |
 | Starter | PHP 35,000 | 10 | 10 |
-| Premium | PHP 45,000 | 50 | 50 |
+| Premium | PHP 35,000 | 50 | 50 |
 | Ultra | PHP 50,000 | Unlimited | Unlimited |
 
 Formulation calculation and saved formulations are unlimited while the device has
@@ -47,9 +47,16 @@ Then log in without repeating the device details:
 
 The `username` login field also accepts the registered email address.
 
-The licensing catalog and authenticated device status are available at
-`/api/v1/licensing/plans` and `/api/v1/licensing/status`. Superuser lifecycle
+The public monthly pricing catalog is available at `/api/v1/pricing/plans`.
+`/api/v1/licensing/plans` remains as a deprecated alias. The authenticated device
+status is available at `/api/v1/licensing/status`, and superuser license lifecycle
 operations are under `/api/v1/admin/licenses`.
+
+Superusers can publish a new immutable price and quota version with
+`POST /api/v1/admin/pricing/plans/{plan_code}/versions` and inspect its history
+with the corresponding `GET` route. Published versions apply to future paid
+activations and renewals; an active license keeps its existing price and quotas
+until renewed.
 
 ## Formulation API versions
 

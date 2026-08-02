@@ -5,6 +5,7 @@ from .feed_optimization_v2_service import FeedOptimizationV2Service
 from .ingredient_service import IngredientService
 from .licensing_service import AdminLicensingService, LicensingService
 from .nutrient_requirement_service import NutrientRequirementService
+from .pricing_service import AdminPricingService, PricingService
 from .system_service import SystemService
 
 __all__ = [

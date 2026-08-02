@@ -20,6 +20,16 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "Pricing",
+        "description": "Public monthly prices and quota comparisons.",
+    },
+    {
+        "name": "Pricing Administration",
+        "description": (
+            "Superuser-only immutable monthly price and quota version publishing."
+        ),
+    },
+    {
         "name": "License Administration",
         "description": (
             "Superuser-only offline payment activation, renewal, revocation, and "
