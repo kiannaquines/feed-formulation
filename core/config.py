@@ -1,4 +1,3 @@
-import hashlib
 import os
 
 from dotenv import load_dotenv
@@ -41,11 +40,18 @@ def _get_list(name: str, default: list[str]) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def _get_secret(name: str) -> str:
+    value = os.getenv(name, "").strip()
+    if not value or value == "replace-with-a-long-random-secret" or len(value) < 32:
+        raise ValueError(
+            f"{name} must be at least 32 characters; generate it with "
+            "'openssl rand -hex 32'"
+        )
+    return value
+
+
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./app_database.db")
-JWT_SECRET_KEY = os.getenv(
-    "JWT_SECRET_KEY",
-    hashlib.sha256(b"feed_formulation_secret_key_1234567890").hexdigest(),
-)
+JWT_SECRET_KEY = _get_secret("JWT_SECRET_KEY")
 JWT_ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 JWT_EXPIRATION_HOURS = _get_positive_int("JWT_EXPIRATION_HOURS", 24)
 NEXT_OTP_INTERVAL = _get_positive_int("NEXT_OTP_INTERVAL", 60)
