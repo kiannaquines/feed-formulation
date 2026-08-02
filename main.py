@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from api.exception_handlers import register_exception_handlers
+from api.openapi import OPENAPI_TAGS
 from core.config import (
     API_PREFIX,
     CORS_ALLOW_CREDENTIALS,
@@ -20,8 +21,34 @@ from routes.root_routes import root_router
 
 app = FastAPI(
     title="Feed Formulation API with Authentication",
-    description="API for feed formulation and management with user authentication and OTP security",
+    summary="Least-cost feed formulation and nutrition data management API",
+    description="""
+Calculate least-cost feed formulations with SciPy linear programming, manage
+ingredient and nutrient data, and store formulation results per authenticated user.
+
+## Authentication
+
+1. Register with `/auth/register`.
+2. Log in with `/auth/login`.
+3. When OTP is enabled, submit the returned session token and OTP to
+   `/auth/verify-otp`.
+4. Select **Authorize** and paste the access token. Swagger UI adds the
+   `Bearer` authentication scheme automatically.
+
+## Ownership
+
+Ingredient and nutrient lists include the current user's records and shared
+legacy records. Shared records are read-only. Saved formulations are private to
+the authenticated user.
+
+## Formulation calculation
+
+The optimizer minimizes ingredient cost while enforcing a 100% total mixture,
+the supplied nutrient targets, and each ingredient's minimum and maximum bounds.
+Percentages are submitted as decimals from `0` to `1` and returned as percentages.
+""",
     version="1.0.0",
+    openapi_tags=OPENAPI_TAGS,
     contact={
         "name": "Kian Naquines",
         "email": "kjgnaquines@usm.edu.ph",

@@ -1,0 +1,60 @@
+from schema.schema import DetailResponse
+
+OPENAPI_TAGS = [
+    {
+        "name": "System",
+        "description": "Service discovery and runtime health information.",
+    },
+    {
+        "name": "Authentication",
+        "description": (
+            "Register users, authenticate credentials, and complete optional "
+            "one-time-password verification. Protected endpoints use a Bearer JWT."
+        ),
+    },
+    {
+        "name": "Feed Formulation",
+        "description": (
+            "Calculate least-cost feed formulations and manage the authenticated "
+            "user's saved formulation payloads."
+        ),
+    },
+    {
+        "name": "Ingredients",
+        "description": (
+            "Manage ingredient composition and pricing. Users can read their own "
+            "and shared ingredients, but shared records are read-only."
+        ),
+    },
+    {
+        "name": "Nutrient Requirements",
+        "description": (
+            "Manage named nutrient targets. Users can read their own and shared "
+            "requirements, but shared records are read-only."
+        ),
+    },
+]
+
+PROTECTED_RESPONSES = {
+    401: {
+        "model": DetailResponse,
+        "description": "The Bearer token is invalid, expired, or belongs to an inactive user.",
+    },
+    403: {
+        "model": DetailResponse,
+        "description": "Authentication credentials are missing or access is forbidden.",
+    },
+}
+
+VALIDATION_RESPONSE = {
+    422: {"description": "The request body or path parameters failed validation."}
+}
+
+OWNED_RESOURCE_RESPONSES = {
+    **PROTECTED_RESPONSES,
+    404: {
+        "model": DetailResponse,
+        "description": "The resource does not exist or is a read-only shared resource.",
+    },
+    **VALIDATION_RESPONSE,
+}

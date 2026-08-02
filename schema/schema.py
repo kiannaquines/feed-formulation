@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -232,3 +233,120 @@ class FeedFormulationUpdateResponse(BaseModel):
 
 class DetailResponse(BaseModel):
     detail: str
+
+
+class RegistrationResponse(BaseModel):
+    message: str
+    note: str
+
+
+class AuthenticatedUserResponse(BaseModel):
+    id: int
+    username: str
+    email: EmailStr
+
+
+class TokenResponse(BaseModel):
+    message: str
+    access_token: str
+    token_type: Literal["bearer"]
+    expires_in_hours: int
+    user: AuthenticatedUserResponse
+
+
+class OTPChallengeResponse(BaseModel):
+    message: str
+    session_token: str
+    current_otp: str
+    expires_in_minutes: int
+    note: str
+
+
+class RootResponse(BaseModel):
+    message: str
+    client_ip: str
+    documentation: str
+    hostname: str
+
+
+class HealthDetailsResponse(BaseModel):
+    otp_enabled: bool
+    uptime_seconds: int
+    hostname: str
+    cpu_usage_percent: float
+    memory_usage_percent: float
+
+
+class HealthResponse(BaseModel):
+    status: Literal["healthy", "unhealthy"]
+    details: HealthDetailsResponse
+
+
+class FormulationInputIngredientResponse(BaseModel):
+    name: str
+    cost_per_kg: float
+    min_percentage: float
+    max_percentage: float
+
+
+class FormulationInputsResponse(BaseModel):
+    total_ingredients: int
+    ingredients: list[FormulationInputIngredientResponse]
+    nutrient_targets: dict[str, float]
+
+
+class OptimizationDetailsResponse(BaseModel):
+    solver_status: str
+    iterations: int
+    total_cost_per_kg: float
+
+
+class IngredientCompositionResponse(BaseModel):
+    name: str
+    percentage: float
+    cost_contribution: float
+    included: bool
+
+
+class NutrientAchievementItemResponse(BaseModel):
+    achieved: float
+    required: float
+
+
+class NutrientAchievementResponse(BaseModel):
+    protein_percent: NutrientAchievementItemResponse
+    energy_me: NutrientAchievementItemResponse
+    calcium_percent: NutrientAchievementItemResponse
+    phosphorus_percent: NutrientAchievementItemResponse
+
+
+class FormulationSummaryResponse(BaseModel):
+    total_ingredient_percentage: float
+    active_ingredients_count: int
+    cost_per_kg: float
+    formulation_feasible: Literal[True]
+
+
+class OptimizationSuccessResponse(BaseModel):
+    formulation_inputs: FormulationInputsResponse
+    status: Literal["success"]
+    message: str
+    optimization_details: OptimizationDetailsResponse
+    ingredient_composition: list[IngredientCompositionResponse]
+    nutrient_achievement: NutrientAchievementResponse
+    summary: FormulationSummaryResponse
+
+
+class OptimizationErrorDetailsResponse(BaseModel):
+    solver_status_code: int
+    solver_message: str
+    possible_causes: list[str]
+    suggestions: list[str]
+
+
+class OptimizationFailureResponse(BaseModel):
+    formulation_inputs: FormulationInputsResponse
+    status: Literal["failure"]
+    detail: str
+    error_details: OptimizationErrorDetailsResponse
+    formulation_feasible: Literal[False]

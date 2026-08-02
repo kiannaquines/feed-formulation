@@ -201,3 +201,30 @@ def test_nutrient_create_derives_owner_and_preserves_response_contract(
     }
     assert stored.user_id == owner.id
     assert rejected_owner.status_code == 422
+
+
+def test_openapi_contains_detailed_operation_and_response_documentation(client):
+    document = client.get("/openapi.json").json()
+    operations = [
+        operation
+        for path in document["paths"].values()
+        for method, operation in path.items()
+        if method in {"get", "post", "put", "delete", "patch"}
+    ]
+    tag_names = {tag["name"] for tag in document["tags"]}
+    formulation_response = document["paths"]["/api/v1/feed/formulate"]["post"][
+        "responses"
+    ]["200"]["content"]["application/json"]["schema"]
+
+    assert "## Authentication" in document["info"]["description"]
+    assert tag_names == {
+        "System",
+        "Authentication",
+        "Feed Formulation",
+        "Ingredients",
+        "Nutrient Requirements",
+    }
+    assert all(operation.get("summary") for operation in operations)
+    assert all(operation.get("description") for operation in operations)
+    assert "anyOf" in formulation_response
+    assert "HTTPBearer" in document["components"]["securitySchemes"]
