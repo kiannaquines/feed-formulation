@@ -158,7 +158,9 @@ the API and restore the previous SQLite `DATABASE_URL`.
 fastapi dev main.py
 ```
 
-The API documentation is available at `http://127.0.0.1:8000/docs`.
+The combined API documentation is available at `http://127.0.0.1:8000/docs`.
+Version-specific Swagger documentation is available at
+`http://127.0.0.1:8000/docs/v1` and `http://127.0.0.1:8000/docs/v2`.
 
 ## Test
 

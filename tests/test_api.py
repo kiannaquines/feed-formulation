@@ -61,6 +61,27 @@ def test_api_uses_feedprime_identity(client):
     assert document["info"]["title"] == "FeedPrime API"
 
 
+def test_versioned_swagger_documents_isolate_api_routes(client):
+    v1_document = client.get("/openapi/v1.json").json()
+    v2_document = client.get("/openapi/v2.json").json()
+    v1_docs = client.get("/docs/v1")
+    v2_docs = client.get("/docs/v2")
+
+    assert v1_document["info"]["title"] == "FeedPrime API V1"
+    assert v1_document["info"]["version"] == "1.0.0"
+    assert v1_document["paths"]
+    assert all(path.startswith("/api/v1/") for path in v1_document["paths"])
+    assert "/v2/feed/formulate" not in v1_document["paths"]
+
+    assert v2_document["info"]["title"] == "FeedPrime API V2"
+    assert v2_document["info"]["version"] == "2.0.0"
+    assert set(v2_document["paths"]) == {"/v2/feed/formulate"}
+    assert v1_docs.status_code == 200
+    assert "/openapi/v1.json" in v1_docs.text
+    assert v2_docs.status_code == 200
+    assert "/openapi/v2.json" in v2_docs.text
+
+
 def test_protected_endpoint_requires_token(client):
     response = client.get("/api/v1/ingredients/all")
 

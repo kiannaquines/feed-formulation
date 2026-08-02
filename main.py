@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 
 from api.exception_handlers import register_exception_handlers
 from api.openapi import OPENAPI_TAGS
@@ -86,6 +89,68 @@ app.include_router(feed_formulation_router, prefix=API_PREFIX)
 app.include_router(ingredient_router, prefix=API_PREFIX)
 app.include_router(nutrient_requirements_router, prefix=API_PREFIX)
 app.include_router(feed_formulation_v2_router, prefix="/v2")
+
+_versioned_openapi_schemas: dict[str, dict] = {}
+
+
+def _versioned_openapi_schema(
+    *, prefix: str, title: str, version: str, tags: list[dict]
+) -> dict:
+    if version not in _versioned_openapi_schemas:
+        _versioned_openapi_schemas[version] = get_openapi(
+            title=title,
+            version=version,
+            summary=app.summary,
+            description=app.description,
+            routes=[
+                route
+                for route in app.routes
+                if getattr(route, "path", "").startswith(prefix)
+            ],
+            tags=tags,
+            contact=app.contact,
+        )
+    return _versioned_openapi_schemas[version]
+
+
+@app.get("/openapi/v1.json", include_in_schema=False)
+def openapi_v1() -> JSONResponse:
+    return JSONResponse(
+        _versioned_openapi_schema(
+            prefix=API_PREFIX,
+            title="FeedPrime API V1",
+            version="1.0.0",
+            tags=[tag for tag in OPENAPI_TAGS if tag["name"] != "Feed Formulation V2"],
+        )
+    )
+
+
+@app.get("/openapi/v2.json", include_in_schema=False)
+def openapi_v2() -> JSONResponse:
+    return JSONResponse(
+        _versioned_openapi_schema(
+            prefix="/v2",
+            title="FeedPrime API V2",
+            version="2.0.0",
+            tags=[tag for tag in OPENAPI_TAGS if tag["name"] == "Feed Formulation V2"],
+        )
+    )
+
+
+@app.get("/docs/v1", include_in_schema=False)
+def docs_v1():
+    return get_swagger_ui_html(
+        openapi_url="/openapi/v1.json",
+        title="FeedPrime API V1 - Swagger UI",
+    )
+
+
+@app.get("/docs/v2", include_in_schema=False)
+def docs_v2():
+    return get_swagger_ui_html(
+        openapi_url="/openapi/v2.json",
+        title="FeedPrime API V2 - Swagger UI",
+    )
 
 if __name__ == "__main__":
     import uvicorn
