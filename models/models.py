@@ -15,6 +15,7 @@ from datetime import datetime
 
 Base = declarative_base()
 
+
 class User(Base):
     __tablename__ = "users"
 
@@ -42,8 +43,8 @@ class OTPSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     expires_at = Column(DateTime, nullable=False)
 
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
-    device_id = Column(Integer, ForeignKey('devices.id'), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=True)
     user = relationship("User", back_populates="otp_sessions")
 
 
@@ -162,7 +163,9 @@ class Referral(Base):
     )
 
     id = Column(Integer, primary_key=True, index=True)
-    referrer_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    referrer_user_id = Column(
+        Integer, ForeignKey("users.id"), nullable=False, index=True
+    )
     referred_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     status = Column(String(20), default="pending", nullable=False)
     qualified_at = Column(DateTime, nullable=True)
@@ -173,12 +176,17 @@ class ReferralCredit(Base):
     __tablename__ = "referral_credits"
 
     id = Column(Integer, primary_key=True, index=True)
-    referral_id = Column(Integer, ForeignKey("referrals.id"), unique=True, nullable=False)
+    referral_id = Column(
+        Integer, ForeignKey("referrals.id"), unique=True, nullable=False
+    )
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
     bonus_days = Column(Integer, nullable=False, default=30)
-    claimed_license_id = Column(Integer, ForeignKey("device_licenses.id"), nullable=True)
+    claimed_license_id = Column(
+        Integer, ForeignKey("device_licenses.id"), nullable=True
+    )
     claimed_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
 
 class Ingredient(Base):
     __tablename__ = "ingredients"
@@ -196,9 +204,10 @@ class Ingredient(Base):
     lysine = Column(Float, nullable=False)
     methionine = Column(Float, nullable=False)
     m_c = Column(Float, nullable=False)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
 
 class FormulationSeries(Base):
     __tablename__ = "formulation_series"
@@ -236,6 +245,7 @@ class FeedFormulation(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     payload = Column(JSON, nullable=False)
 
+
 class NutrientRequirements(Base):
     __tablename__ = "nutrient_requirements"
 
@@ -243,4 +253,4 @@ class NutrientRequirements(Base):
     nutrient_requirement_name = Column(String, nullable=False)
     nutrient_requirement_description = Column(String, nullable=True)
     composition = Column(JSON, nullable=False)
-    user_id = Column(Integer, ForeignKey('users.id'), nullable=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
