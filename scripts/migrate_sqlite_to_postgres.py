@@ -13,7 +13,7 @@ from sqlalchemy.engine import Connection, Engine, make_url
 load_dotenv()
 
 
-ALEMBIC_HEAD = "c7d2f8a19e04"
+ALEMBIC_HEAD = "f8b2c6d41e73"
 TABLES = [
     "users",
     "pricing_plans",

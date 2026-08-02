@@ -116,7 +116,7 @@ def seed_postgres_pricing(engine) -> None:
     with testing_session() as session:
         for code, name, price, ingredient_limit, requirement_limit in [
             ("starter", "Starter", 35_000, 10, 10),
-            ("premium", "Premium", 35_000, 50, 50),
+            ("premium", "Premium", 45_000, 50, 50),
             ("ultra", "Ultra", 50_000, None, None),
         ]:
             plan = PricingPlan(
@@ -172,7 +172,7 @@ def test_postgres_alembic_upgrade_reaches_head(postgres_engine):
     with postgres_engine.connect() as connection:
         revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
 
-    assert revision == "c7d2f8a19e04"
+    assert revision == "f8b2c6d41e73"
 
 
 def test_postgres_registration_email_login_and_health(postgres_engine):

@@ -2,6 +2,7 @@ env
 app_database.db
 app_database.sqlite.backup
 feedprime_before_pricing.dump
+feedprime_review_fixes_head.dump
 .env
 __pycache__/
 .pytest_cache/

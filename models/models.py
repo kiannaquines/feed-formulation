@@ -106,7 +106,7 @@ class DeviceLicense(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    device_id = Column(Integer, ForeignKey("devices.id"), nullable=True, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=False, index=True)
     pricing_plan_version_id = Column(
         Integer,
         ForeignKey("pricing_plan_versions.id"),

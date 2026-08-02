@@ -56,7 +56,8 @@ Superusers can publish a new immutable price and quota version with
 `POST /api/v1/admin/pricing/plans/{plan_code}/versions` and inspect its history
 with the corresponding `GET` route. Published versions apply to future paid
 activations and renewals; an active license keeps its existing price and quotas
-until renewed.
+until renewed. When publishing, an omitted quota keeps its current value, while
+an explicit `null` changes that quota to unlimited.
 
 ## Formulation API versions
 

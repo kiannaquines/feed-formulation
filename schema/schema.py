@@ -415,8 +415,16 @@ class PricingPlanVersionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     monthly_price: int = Field(gt=0)
-    ingredient_limit: int | None = Field(default=None, gt=0)
-    requirement_limit: int | None = Field(default=None, gt=0)
+    ingredient_limit: int | None = Field(
+        default=None,
+        gt=0,
+        description="Omit to keep the current limit; send null for unlimited.",
+    )
+    requirement_limit: int | None = Field(
+        default=None,
+        gt=0,
+        description="Omit to keep the current limit; send null for unlimited.",
+    )
 
 
 class DeviceResponse(BaseModel):

@@ -61,7 +61,7 @@ def seed_pricing(session) -> dict[str, int]:
     now = datetime.utcnow()
     for code, name, price, ingredient_limit, requirement_limit in [
         ("starter", "Starter", 35_000, 10, 10),
-        ("premium", "Premium", 35_000, 50, 50),
+        ("premium", "Premium", 45_000, 50, 50),
         ("ultra", "Ultra", 50_000, None, None),
     ]:
         plan = PricingPlan(

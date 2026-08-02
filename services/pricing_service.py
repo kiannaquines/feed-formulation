@@ -68,13 +68,22 @@ class AdminPricingService(PricingService):
             current = self.pricing.get_current_by_code(code)
             if not plan or not current:
                 raise PersistenceError("Pricing plan has no current version")
+            current_version = current[1]
             version = self.pricing.add(
                 PricingPlanVersion(
                     plan_id=plan.id,
-                    version_number=current[1].version_number + 1,
+                    version_number=current_version.version_number + 1,
                     monthly_price=data.monthly_price,
-                    ingredient_limit=data.ingredient_limit,
-                    requirement_limit=data.requirement_limit,
+                    ingredient_limit=(
+                        data.ingredient_limit
+                        if "ingredient_limit" in data.model_fields_set
+                        else current_version.ingredient_limit
+                    ),
+                    requirement_limit=(
+                        data.requirement_limit
+                        if "requirement_limit" in data.model_fields_set
+                        else current_version.requirement_limit
+                    ),
                     formulation_limit=None,
                     effective_at=datetime.utcnow(),
                     created_by_user_id=admin_user_id,

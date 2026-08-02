@@ -42,7 +42,7 @@ def test_public_monthly_pricing_and_deprecated_alias(client):
     ]
     assert [plan["monthly_price"] for plan in pricing.json()] == [
         35_000,
-        35_000,
+        45_000,
         50_000,
     ]
     assert all(plan["duration_days"] == 30 for plan in pricing.json())
@@ -162,6 +162,32 @@ def test_active_license_keeps_snapshot_until_monthly_renewal(
     assert renewed.json()["price_php"] == 36_000
     assert stored_license.expires_at == original_expiry + timedelta(days=30)
     assert allowed_after_renewal.status_code == 200
+
+
+def test_price_only_publication_inherits_omitted_quotas_and_null_is_unlimited(
+    client, db_session, user_factory
+):
+    admin = user_factory("quota-inheritance-admin")
+    admin.is_superuser = True
+    db_session.commit()
+
+    price_only = client.post(
+        "/api/v1/admin/pricing/plans/starter/versions",
+        json={"monthly_price": 36_000},
+        headers=auth_header(admin),
+    )
+    unlimited_ingredients = client.post(
+        "/api/v1/admin/pricing/plans/starter/versions",
+        json={"monthly_price": 37_000, "ingredient_limit": None},
+        headers=auth_header(admin),
+    )
+
+    assert price_only.status_code == 201
+    assert price_only.json()["ingredient_limit"] == 10
+    assert price_only.json()["requirement_limit"] == 10
+    assert unlimited_ingredients.status_code == 201
+    assert unlimited_ingredients.json()["ingredient_limit"] is None
+    assert unlimited_ingredients.json()["requirement_limit"] == 10
 
 
 def test_seeded_pricing_versions_are_linked_to_trial_licenses(
