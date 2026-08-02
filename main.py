@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+
+from api.exception_handlers import register_exception_handlers
 from core.config import (
     API_PREFIX,
     CORS_ALLOW_CREDENTIALS,
@@ -9,14 +11,12 @@ from core.config import (
     SERVER_HOST,
     SERVER_PORT,
 )
-from db.database import *
-from schema.schema import *
 
 from routes.authentication_routes import auth_router
 from routes.feed_formulation_routes import feed_formulation_router
-from routes.root_routes import root_router
 from routes.ingredient_routes import ingredient_router
 from routes.nutrient_requirements_routes import nutrient_requirements_router
+from routes.root_routes import root_router
 
 app = FastAPI(
     title="Feed Formulation API with Authentication",
@@ -24,8 +24,8 @@ app = FastAPI(
     version="1.0.0",
     contact={
         "name": "Kian Naquines",
-        "email": "kjgnaquines@usm.edu.ph"
-    }
+        "email": "kjgnaquines@usm.edu.ph",
+    },
 )
 
 app.add_middleware(
@@ -35,6 +35,7 @@ app.add_middleware(
     allow_methods=CORS_ALLOW_METHODS,
     allow_headers=CORS_ALLOW_HEADERS,
 )
+register_exception_handlers(app)
 
 app.include_router(root_router, prefix=API_PREFIX)
 app.include_router(auth_router, prefix=API_PREFIX)
@@ -44,4 +45,5 @@ app.include_router(nutrient_requirements_router, prefix=API_PREFIX)
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)

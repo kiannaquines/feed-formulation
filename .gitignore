@@ -1,3 +1,5 @@
 env
 app_database.db
 .env
+__pycache__/
+.pytest_cache/

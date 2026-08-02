@@ -1,0 +1,203 @@
+from sqlalchemy import select
+
+from core.authentication import create_jwt_token
+from models.models import FeedFormulation, Ingredient, NutrientRequirements
+
+
+def auth_header(user) -> dict:
+    return {"Authorization": f"Bearer {create_jwt_token(user.id, user.username)}"}
+
+
+def ingredient_payload(name: str = "Corn") -> dict:
+    return {
+        "name": name,
+        "price": 1,
+        "crude_protein": 1,
+        "crude_fat": 1,
+        "crude_fiber": 1,
+        "metabolized_energy": 1,
+        "calcium": 1,
+        "total_phosphorus": 1,
+        "avail_phosphorus": 1,
+        "lysine": 1,
+        "methionine": 1,
+        "m_c": 1,
+        "is_available": True,
+    }
+
+
+def nutrient_payload(name: str = "Layer") -> dict:
+    return {
+        "nutrient_requirement_name": name,
+        "nutrient_requirement_description": "Description",
+        "composition": {"protein_percent": 16},
+    }
+
+
+def test_protected_endpoint_requires_token(client):
+    response = client.get("/api/v1/ingredients/all")
+
+    assert response.status_code == 403
+
+
+def test_registration_login_and_invalid_token(client):
+    registration = {
+        "username": "new-user",
+        "email": "new-user@example.com",
+        "password": "password123",
+    }
+
+    registered = client.post("/api/v1/auth/register", json=registration)
+    duplicate = client.post("/api/v1/auth/register", json=registration)
+    logged_in = client.post(
+        "/api/v1/auth/login",
+        json={"username": "new-user", "password": "password123"},
+    )
+    invalid_token = client.get(
+        "/api/v1/ingredients/all",
+        headers={"Authorization": "Bearer invalid"},
+    )
+
+    assert registered.status_code == 200
+    assert duplicate.status_code == 400
+    assert logged_in.status_code == 200
+    assert logged_in.json()["token_type"] == "bearer"
+    assert invalid_token.status_code == 401
+
+
+def test_inactive_user_token_is_rejected(client, db_session, user_factory):
+    user = user_factory("inactive")
+    headers = auth_header(user)
+    user.is_active = False
+    db_session.commit()
+
+    response = client.get("/api/v1/ingredients/all", headers=headers)
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "User not found or inactive"}
+
+
+def test_ingredient_visibility_and_mixed_ownership_errors(
+    client, db_session, user_factory
+):
+    owner = user_factory("owner")
+    other = user_factory("other")
+    shared = Ingredient(**ingredient_payload("shared"), user_id=None)
+    other_row = Ingredient(**ingredient_payload("other"), user_id=other.id)
+    own_row = Ingredient(**ingredient_payload("own"), user_id=owner.id)
+    db_session.add_all([shared, other_row, own_row])
+    db_session.commit()
+
+    listed = client.get(
+        "/api/v1/ingredients/all", headers=auth_header(owner)
+    )
+    names = [item["name"] for item in listed.json()["ingredients"]]
+    shared_update = client.put(
+        f"/api/v1/ingredients/update/{shared.id}",
+        json=ingredient_payload("changed"),
+        headers=auth_header(owner),
+    )
+    other_update = client.put(
+        f"/api/v1/ingredients/update/{other_row.id}",
+        json=ingredient_payload("changed"),
+        headers=auth_header(owner),
+    )
+
+    assert names == ["shared", "own"]
+    assert shared_update.status_code == 404
+    assert other_update.status_code == 403
+
+
+def test_formulation_owner_comes_from_jwt_and_lists_are_scoped(
+    client, db_session, user_factory
+):
+    owner = user_factory("owner")
+    other = user_factory("other")
+    db_session.add(
+        FeedFormulation(
+            formulation_name="Other",
+            formulation_description="Other",
+            user_id=other.id,
+            payload={},
+        )
+    )
+    db_session.commit()
+    payload = {
+        "formulation_name": "Mine",
+        "formulation_description": "Description",
+        "payload": {"status": "success"},
+    }
+
+    created = client.post(
+        "/api/v1/feed/formulation/save",
+        json=payload,
+        headers=auth_header(owner),
+    )
+    listed = client.get(
+        "/api/v1/feed/formulation/all", headers=auth_header(owner)
+    )
+    rejected_owner = client.post(
+        "/api/v1/feed/formulation/save",
+        json={**payload, "user_id": other.id},
+        headers=auth_header(owner),
+    )
+
+    assert created.status_code == 201
+    assert [item["formulation_name"] for item in listed.json()] == ["Mine"]
+    assert listed.json()[0]["user_id"] == owner.id
+    assert rejected_owner.status_code == 422
+
+
+def test_corrected_and_legacy_nutrient_routes(
+    client, db_session, user_factory
+):
+    owner = user_factory("owner")
+    requirement = NutrientRequirements(
+        **nutrient_payload(), user_id=owner.id
+    )
+    db_session.add(requirement)
+    db_session.commit()
+
+    canonical = client.put(
+        f"/api/v1/nutrient-requirements/update/{requirement.id}",
+        json=nutrient_payload("Canonical"),
+        headers=auth_header(owner),
+    )
+    legacy = client.put(
+        f"/api/v1/nutrient-requrments/update/{requirement.id}",
+        json=nutrient_payload("Legacy"),
+        headers=auth_header(owner),
+    )
+    paths = client.get("/openapi.json").json()["paths"]
+
+    assert canonical.status_code == 200
+    assert legacy.status_code == 200
+    assert "/api/v1/nutrient-requirements/update/{nutrient_requirement_id}" in paths
+    assert "/api/v1/nutrient-requrments/update/{nutrient_requirement_id}" not in paths
+
+
+def test_nutrient_create_derives_owner_and_preserves_response_contract(
+    client, db_session, user_factory
+):
+    owner = user_factory("owner")
+
+    created = client.post(
+        "/api/v1/nutrient-requirements/create",
+        json=nutrient_payload(),
+        headers=auth_header(owner),
+    )
+    rejected_owner = client.post(
+        "/api/v1/nutrient-requirements/create",
+        json={**nutrient_payload(), "user_id": owner.id},
+        headers=auth_header(owner),
+    )
+    stored = db_session.scalar(select(NutrientRequirements))
+
+    assert created.status_code == 200
+    assert set(created.json()["nutrient_info"]) == {
+        "nutrient_requirement_name",
+        "nutrient_requirement_description",
+        "composition",
+    }
+    assert stored.user_id == owner.id
+    assert rejected_owner.status_code == 422
