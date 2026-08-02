@@ -1,5 +1,16 @@
 from sqlalchemy.orm import declarative_base, relationship
-from sqlalchemy import Column, Integer, String, Boolean, ForeignKey, DateTime, Float, JSON
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Column,
+    DateTime,
+    Float,
+    ForeignKey,
+    Integer,
+    JSON,
+    String,
+    UniqueConstraint,
+)
 from datetime import datetime
 
 Base = declarative_base()
@@ -17,6 +28,7 @@ class User(Base):
     is_superuser = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     last_login_at = Column(DateTime, nullable=True)
+    referral_code = Column(String(16), unique=True, nullable=True, index=True)
 
     otp_sessions = relationship("OTPSession", back_populates="user")
 
@@ -31,7 +43,96 @@ class OTPSession(Base):
     expires_at = Column(DateTime, nullable=False)
 
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    device_id = Column(Integer, ForeignKey('devices.id'), nullable=True)
     user = relationship("User", back_populates="otp_sessions")
+
+
+class Device(Base):
+    __tablename__ = "devices"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    installation_id = Column(String(36), unique=True, nullable=False, index=True)
+    name = Column(String(120), nullable=False)
+    device_type = Column(String(20), nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    last_seen_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class DeviceLicense(Base):
+    __tablename__ = "device_licenses"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    device_id = Column(Integer, ForeignKey("devices.id"), nullable=True, index=True)
+    plan_code = Column(String(20), nullable=False)
+    license_type = Column(String(20), nullable=False)
+    status = Column(String(20), default="active", nullable=False)
+    starts_at = Column(DateTime, nullable=False)
+    expires_at = Column(DateTime, nullable=False, index=True)
+    price_php = Column(Integer, nullable=False, default=0)
+    payment_reference = Column(String(120), unique=True, nullable=True)
+    activated_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(
+        DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+
+class LicenseEvent(Base):
+    __tablename__ = "license_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    license_id = Column(
+        Integer, ForeignKey("device_licenses.id"), nullable=False, index=True
+    )
+    event_type = Column(String(30), nullable=False)
+    actor_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    details = Column(JSON, nullable=False, default=dict)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class LicensePayment(Base):
+    __tablename__ = "license_payments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    license_id = Column(
+        Integer, ForeignKey("device_licenses.id"), nullable=False, index=True
+    )
+    payment_reference = Column(String(120), unique=True, nullable=False)
+    price_php = Column(Integer, nullable=False)
+    recorded_by_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class Referral(Base):
+    __tablename__ = "referrals"
+    __table_args__ = (
+        UniqueConstraint("referred_user_id", name="uq_referrals_referred_user_id"),
+        CheckConstraint(
+            "referrer_user_id != referred_user_id", name="ck_referrals_not_self"
+        ),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    referrer_user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    referred_user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    status = Column(String(20), default="pending", nullable=False)
+    qualified_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ReferralCredit(Base):
+    __tablename__ = "referral_credits"
+
+    id = Column(Integer, primary_key=True, index=True)
+    referral_id = Column(Integer, ForeignKey("referrals.id"), unique=True, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    bonus_days = Column(Integer, nullable=False, default=30)
+    claimed_license_id = Column(Integer, ForeignKey("device_licenses.id"), nullable=True)
+    claimed_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
 class Ingredient(Base):
     __tablename__ = "ingredients"

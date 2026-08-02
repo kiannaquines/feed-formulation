@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 
-from api.dependencies import get_current_user, get_ingredient_service
+from api.dependencies import get_ingredient_service, get_licensed_user
 from api.openapi import (
     OWNED_RESOURCE_RESPONSES,
     PROTECTED_RESPONSES,
@@ -28,7 +28,7 @@ ingredient_router = APIRouter(tags=["Ingredients"])
     responses=PROTECTED_RESPONSES,
 )
 def get_ingredients(
-    auth_user: dict = Depends(get_current_user),
+    auth_user: dict = Depends(get_licensed_user),
     service: IngredientService = Depends(get_ingredient_service),
 ):
     return service.list_visible(auth_user["user_id"])
@@ -50,10 +50,10 @@ def get_ingredients(
 )
 def create_ingredient(
     data: IngredientCreate,
-    auth_user: dict = Depends(get_current_user),
+    auth_user: dict = Depends(get_licensed_user),
     service: IngredientService = Depends(get_ingredient_service),
 ):
-    return service.create(data, auth_user["user_id"])
+    return service.create(data, auth_user["user_id"], auth_user["device_id"])
 
 
 @ingredient_router.put(
@@ -72,7 +72,7 @@ def create_ingredient(
 def update_ingredient(
     ingredient_id: int,
     data: IngredientCreate,
-    auth_user: dict = Depends(get_current_user),
+    auth_user: dict = Depends(get_licensed_user),
     service: IngredientService = Depends(get_ingredient_service),
 ):
     return service.update(ingredient_id, data, auth_user["user_id"])
@@ -90,7 +90,7 @@ def update_ingredient(
 )
 def delete_ingredient(
     ingredient_id: int,
-    auth_user: dict = Depends(get_current_user),
+    auth_user: dict = Depends(get_licensed_user),
     service: IngredientService = Depends(get_ingredient_service),
 ):
     return service.delete(ingredient_id, auth_user["user_id"])

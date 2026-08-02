@@ -22,7 +22,9 @@ auth_router = APIRouter(tags=["Authentication"])
     summary="Register a user",
     description=(
         "Create an active user account with a unique username and email address. "
-        "The password is stored as a one-way bcrypt hash."
+        "The password is stored as a one-way bcrypt hash. A valid optional referral "
+        "code links the new account to its referrer, and registration starts a "
+        "14-day Starter trial."
     ),
     responses={
         400: {"model": DetailResponse, "description": "Username or email already exists."},
@@ -41,8 +43,10 @@ def register_user(
     response_model=TokenResponse | OTPChallengeResponse,
     summary="Authenticate a user",
     description=(
-        "Validate username and password. Returns a Bearer JWT immediately when "
-        "OTP is disabled, otherwise returns a short-lived OTP session challenge."
+        "Validate username, password, and required installation identity. The first "
+        "device claims the account trial. Returns a device-bound Bearer JWT "
+        "immediately when OTP is disabled, otherwise returns a short-lived OTP "
+        "session challenge."
     ),
     responses={
         401: {"model": DetailResponse, "description": "Invalid username or password."},

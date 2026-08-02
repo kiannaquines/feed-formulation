@@ -28,3 +28,11 @@ class PersistenceError(ApplicationError):
 
 class OptimizationError(ApplicationError):
     pass
+
+
+class LicenseRequiredError(ApplicationError):
+    pass
+
+
+class QuotaExceededError(ApplicationError):
+    pass

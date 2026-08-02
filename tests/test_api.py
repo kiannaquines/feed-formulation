@@ -5,7 +5,11 @@ from models.models import FeedFormulation, Ingredient, NutrientRequirements
 
 
 def auth_header(user) -> dict:
-    return {"Authorization": f"Bearer {create_jwt_token(user.id, user.username)}"}
+    return {
+        "Authorization": (
+            f"Bearer {create_jwt_token(user.id, user.username, user.test_device_id)}"
+        )
+    }
 
 
 def ingredient_payload(name: str = "Corn") -> dict:
@@ -51,7 +55,13 @@ def test_registration_login_and_invalid_token(client):
     duplicate = client.post("/api/v1/auth/register", json=registration)
     logged_in = client.post(
         "/api/v1/auth/login",
-        json={"username": "new-user", "password": "password123"},
+        json={
+            "username": "new-user",
+            "password": "password123",
+            "installation_id": "2a4f56ef-a930-4934-a283-a6e476a6607a",
+            "device_name": "Main laptop",
+            "device_type": "laptop",
+        },
     )
     invalid_token = client.get(
         "/api/v1/ingredients/all",
@@ -223,6 +233,8 @@ def test_openapi_contains_detailed_operation_and_response_documentation(client):
         "Feed Formulation",
         "Ingredients",
         "Nutrient Requirements",
+        "Licensing",
+        "License Administration",
     }
     assert all(operation.get("summary") for operation in operations)
     assert all(operation.get("description") for operation in operations)

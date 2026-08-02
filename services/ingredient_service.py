@@ -5,13 +5,20 @@ from core.exceptions import ConflictError, PersistenceError
 from models.models import Ingredient
 from repositories import IngredientRepository
 from schema.schema import IngredientCreate
+from services.licensing_service import LicensingService
 from services.ownership import require_mutable_owner
 
 
 class IngredientService:
-    def __init__(self, db: Session, ingredients: IngredientRepository):
+    def __init__(
+        self,
+        db: Session,
+        ingredients: IngredientRepository,
+        licensing: LicensingService | None = None,
+    ):
         self.db = db
         self.ingredients = ingredients
+        self.licensing = licensing
 
     def list_visible(self, user_id: int) -> dict:
         ingredients = self._read(lambda: self.ingredients.list_visible_to(user_id))
@@ -22,7 +29,11 @@ class IngredientService:
             "ingredients": ingredients,
         }
 
-    def create(self, data: IngredientCreate, user_id: int) -> Ingredient:
+    def create(
+        self, data: IngredientCreate, user_id: int, device_id: int | None = None
+    ) -> Ingredient:
+        if self.licensing and device_id is not None:
+            self.licensing.require_quota(user_id, device_id, "ingredients")
         ingredient = Ingredient(**data.model_dump(), user_id=user_id)
         self._commit(lambda: self.ingredients.add(ingredient))
         self.db.refresh(ingredient)

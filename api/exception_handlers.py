@@ -9,6 +9,8 @@ from core.exceptions import (
     NotFoundError,
     OptimizationError,
     PersistenceError,
+    LicenseRequiredError,
+    QuotaExceededError,
     ValidationError,
 )
 
@@ -20,6 +22,8 @@ ERROR_STATUS_CODES = {
     ConflictError: status.HTTP_409_CONFLICT,
     PersistenceError: status.HTTP_500_INTERNAL_SERVER_ERROR,
     OptimizationError: status.HTTP_500_INTERNAL_SERVER_ERROR,
+    LicenseRequiredError: status.HTTP_403_FORBIDDEN,
+    QuotaExceededError: status.HTTP_409_CONFLICT,
 }
 
 

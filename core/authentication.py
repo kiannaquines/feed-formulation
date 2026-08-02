@@ -23,10 +23,11 @@ def generate_otp_secret() -> str:
     return secrets.token_urlsafe(32)
 
 
-def create_jwt_token(user_id: int, username: str) -> str:
+def create_jwt_token(user_id: int, username: str, device_id: int) -> str:
     payload = {
         "user_id": user_id,
         "username": username,
+        "device_id": device_id,
         "exp": datetime.utcnow() + timedelta(hours=JWT_EXPIRATION_HOURS),
     }
     return jwt.encode(payload, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)

@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
@@ -10,6 +11,7 @@ class UserRegister(BaseModel):
     username: str
     email: EmailStr
     password: str
+    referral_code: str | None = Field(default=None, min_length=6, max_length=16)
 
 
 class UserLogin(BaseModel):
@@ -17,6 +19,9 @@ class UserLogin(BaseModel):
 
     username: str
     password: str
+    installation_id: UUID
+    device_name: str = Field(min_length=1, max_length=120)
+    device_type: Literal["phone", "laptop", "desktop"]
 
 
 class OTPVerification(BaseModel):
@@ -350,3 +355,106 @@ class OptimizationFailureResponse(BaseModel):
     detail: str
     error_details: OptimizationErrorDetailsResponse
     formulation_feasible: Literal[False]
+
+
+class PlanResponse(BaseModel):
+    code: Literal["starter", "premium", "ultra"]
+    name: str
+    currency: Literal["PHP"]
+    annual_price: int
+    duration_days: Literal[365]
+    ingredient_limit: int | None
+    requirement_limit: int | None
+    formulation_limit: None
+
+
+class DeviceResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    installation_id: str
+    name: str
+    device_type: Literal["phone", "laptop", "desktop"]
+    is_active: bool
+    created_at: datetime
+    last_seen_at: datetime
+
+
+class LicenseResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    user_id: int
+    device_id: int | None
+    plan_code: Literal["starter", "premium", "ultra"]
+    license_type: Literal["trial", "paid"]
+    status: Literal["active", "revoked"]
+    starts_at: datetime
+    expires_at: datetime
+    price_php: int
+    payment_reference: str | None
+
+
+class QuotaUsageResponse(BaseModel):
+    used: int
+    limit: int | None
+
+
+class LicensingStatusResponse(BaseModel):
+    status: Literal["active", "expired", "unlicensed"]
+    device: DeviceResponse
+    license: LicenseResponse | None
+    ingredients: QuotaUsageResponse
+    requirements: QuotaUsageResponse
+
+
+class ReferralCreditResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    bonus_days: int
+    claimed_license_id: int | None
+    claimed_at: datetime | None
+    created_at: datetime
+
+
+class ReferralSummaryResponse(BaseModel):
+    referral_code: str
+    pending_referrals: int
+    qualified_referrals: int
+    credits: list[ReferralCreditResponse]
+
+
+class ReferralClaimRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    license_id: int
+
+
+class LicenseActivationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    user_id: int
+    device_id: int
+    plan_code: Literal["starter", "premium", "ultra"]
+    payment_reference: str = Field(min_length=1, max_length=120)
+
+
+class LicenseRenewalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    plan_code: Literal["starter", "premium", "ultra"]
+    payment_reference: str = Field(min_length=1, max_length=120)
+
+
+class LicenseReassignmentRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    device_id: int
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class LicenseRevocationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)

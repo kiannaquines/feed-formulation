@@ -16,11 +16,17 @@ from core.config import (
     OTP_IS_ENABLED,
     OTP_SESSION_EXPIRATION_MINUTES,
 )
-from core.exceptions import AuthenticationError, PersistenceError, ValidationError
+from core.exceptions import (
+    ApplicationError,
+    AuthenticationError,
+    PersistenceError,
+    ValidationError,
+)
 from core.otp import generate_otp, verify_otp
 from models.models import OTPSession, User
 from repositories import OTPSessionRepository, UserRepository
 from schema.schema import OTPVerification, UserLogin, UserRegister
+from services.licensing_service import LicensingService
 
 
 class AuthenticationService:
@@ -29,10 +35,12 @@ class AuthenticationService:
         db: Session,
         users: UserRepository,
         otp_sessions: OTPSessionRepository,
+        licensing: LicensingService,
     ):
         self.db = db
         self.users = users
         self.otp_sessions = otp_sessions
+        self.licensing = licensing
 
     def register(self, data: UserRegister) -> dict:
         if self._read(
@@ -46,7 +54,12 @@ class AuthenticationService:
             password_hash=hash_password(data.password),
             otp_secret=generate_otp_secret(),
         )
-        self._commit(lambda: self.users.add(user))
+
+        def create_account() -> None:
+            self.users.add(user)
+            self.licensing.initialize_account(user, data.referral_code)
+
+        self._commit(create_account)
         return {
             "message": "User registered successfully",
             "note": "Save your OTP secret securely. You'll need it for login verification.",
@@ -60,18 +73,38 @@ class AuthenticationService:
         user = self._read(lambda: self.users.get_by_id(user_id))
         if not user or not user.is_active:
             raise AuthenticationError("User not found or inactive")
-        return {"user_id": user.id, "username": user.username}
+        device_id = payload.get("device_id")
+        if not isinstance(device_id, int):
+            raise AuthenticationError("Invalid device token")
+        device = self._read(
+            lambda: self.licensing.licensing.get_owned_device(device_id, user.id)
+        )
+        if not device or not device.is_active:
+            raise AuthenticationError("Device not found or inactive")
+        return {
+            "user_id": user.id,
+            "username": user.username,
+            "device_id": device.id,
+            "is_superuser": bool(user.is_superuser),
+        }
 
     def login(self, data: UserLogin) -> dict:
         user = self._read(lambda: self.users.get_active_by_username(data.username))
         if not user or not verify_password(data.password, user.password_hash):
             raise AuthenticationError("Invalid username or password")
 
+        device = self.licensing.register_login_device(user, data)
+
         if not OTP_IS_ENABLED:
-            return self._token_response(user, "Login successful (OTP disabled)")
+            user.last_login_at = datetime.utcnow()
+            self._commit()
+            return self._token_response(
+                user, device.id, "Login successful (OTP disabled)"
+            )
 
         otp_session = OTPSession(
             user_id=user.id,
+            device_id=device.id,
             session_token=secrets.token_urlsafe(32),
             expires_at=datetime.utcnow()
             + timedelta(minutes=OTP_SESSION_EXPIRATION_MINUTES),
@@ -105,12 +138,14 @@ class AuthenticationService:
         otp_session.is_verified = True
         user.last_login_at = datetime.utcnow()
         self._commit()
-        return self._token_response(user, "OTP verified successfully")
+        return self._token_response(
+            user, otp_session.device_id, "OTP verified successfully"
+        )
 
-    def _token_response(self, user: User, message: str) -> dict:
+    def _token_response(self, user: User, device_id: int, message: str) -> dict:
         return {
             "message": message,
-            "access_token": create_jwt_token(user.id, user.username),
+            "access_token": create_jwt_token(user.id, user.username, device_id),
             "token_type": "bearer",
             "expires_in_hours": JWT_EXPIRATION_HOURS,
             "user": {
@@ -125,6 +160,9 @@ class AuthenticationService:
             if operation:
                 operation()
             self.db.commit()
+        except ApplicationError:
+            self.db.rollback()
+            raise
         except SQLAlchemyError as exc:
             self.db.rollback()
             raise PersistenceError("Database operation failed") from exc

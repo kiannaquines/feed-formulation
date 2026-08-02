@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, status
 
-from api.dependencies import get_current_user, get_nutrient_requirement_service
+from api.dependencies import get_licensed_user, get_nutrient_requirement_service
 from api.openapi import OWNED_RESOURCE_RESPONSES, PROTECTED_RESPONSES, VALIDATION_RESPONSE
 from schema.schema import (
     DetailResponse,
@@ -26,7 +26,7 @@ nutrient_requirements_router = APIRouter(tags=["Nutrient Requirements"])
     responses=PROTECTED_RESPONSES,
 )
 def get_nutrient_requirements(
-    auth_user: dict = Depends(get_current_user),
+    auth_user: dict = Depends(get_licensed_user),
     service: NutrientRequirementService = Depends(
         get_nutrient_requirement_service
     ),
@@ -47,12 +47,14 @@ def get_nutrient_requirements(
 )
 def create_nutrient_requirements(
     nutrient_requirement: NutrientRequirementsBase,
-    auth_user: dict = Depends(get_current_user),
+    auth_user: dict = Depends(get_licensed_user),
     service: NutrientRequirementService = Depends(
         get_nutrient_requirement_service
     ),
 ):
-    return service.create(nutrient_requirement, auth_user["user_id"])
+    return service.create(
+        nutrient_requirement, auth_user["user_id"], auth_user["device_id"]
+    )
 
 
 @nutrient_requirements_router.put(
@@ -76,7 +78,7 @@ def create_nutrient_requirements(
 def update_nutrient_requirement(
     nutrient_requirement_id: int,
     payload: NutrientRequirementsBase,
-    auth_user: dict = Depends(get_current_user),
+    auth_user: dict = Depends(get_licensed_user),
     service: NutrientRequirementService = Depends(
         get_nutrient_requirement_service
     ),
@@ -104,7 +106,7 @@ def update_nutrient_requirement(
 )
 def delete_nutrient_requirement(
     nutrient_requirement_id: int,
-    auth_user: dict = Depends(get_current_user),
+    auth_user: dict = Depends(get_licensed_user),
     service: NutrientRequirementService = Depends(
         get_nutrient_requirement_service
     ),

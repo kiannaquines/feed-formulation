@@ -8,14 +8,24 @@ import services.authentication_service as authentication_service_module
 from core.authentication import hash_password
 from core.exceptions import OptimizationError, PersistenceError, ValidationError
 from models.models import User
-from repositories import IngredientRepository, OTPSessionRepository, UserRepository
+from repositories import (
+    IngredientRepository,
+    LicensingRepository,
+    OTPSessionRepository,
+    UserRepository,
+)
 from schema.schema import (
     FeedFormulationRequest,
     IngredientCreate,
     OTPVerification,
     UserLogin,
 )
-from services import AuthenticationService, FeedOptimizationService, IngredientService
+from services import (
+    AuthenticationService,
+    FeedOptimizationService,
+    IngredientService,
+    LicensingService,
+)
 
 
 def ingredient_payload(name: str = "Corn") -> dict:
@@ -182,9 +192,18 @@ def test_authentication_service_completes_otp_flow(db_session, monkeypatch):
         db_session,
         UserRepository(db_session),
         OTPSessionRepository(db_session),
+        LicensingService(db_session, LicensingRepository(db_session)),
     )
 
-    login = service.login(UserLogin(username=user.username, password="password123"))
+    login = service.login(
+        UserLogin(
+            username=user.username,
+            password="password123",
+            installation_id="efb1c97b-1db1-47d3-a3c4-26eef161578a",
+            device_name="OTP laptop",
+            device_type="laptop",
+        )
+    )
     verified = service.verify_otp(
         OTPVerification(
             session_token=login["session_token"],

@@ -5,15 +5,20 @@ from core.exceptions import PersistenceError
 from models.models import NutrientRequirements
 from repositories import NutrientRequirementRepository
 from schema.schema import NutrientRequirementsBase
+from services.licensing_service import LicensingService
 from services.ownership import require_mutable_owner
 
 
 class NutrientRequirementService:
     def __init__(
-        self, db: Session, requirements: NutrientRequirementRepository
+        self,
+        db: Session,
+        requirements: NutrientRequirementRepository,
+        licensing: LicensingService | None = None,
     ):
         self.db = db
         self.requirements = requirements
+        self.licensing = licensing
 
     def list_visible(self, user_id: int) -> dict:
         requirements = self._read(
@@ -26,7 +31,14 @@ class NutrientRequirementService:
             "nutrient_requirements": requirements,
         }
 
-    def create(self, data: NutrientRequirementsBase, user_id: int) -> dict:
+    def create(
+        self,
+        data: NutrientRequirementsBase,
+        user_id: int,
+        device_id: int | None = None,
+    ) -> dict:
+        if self.licensing and device_id is not None:
+            self.licensing.require_quota(user_id, device_id, "requirements")
         requirement = NutrientRequirements(**data.model_dump(), user_id=user_id)
         self._commit(lambda: self.requirements.add(requirement))
         self.db.refresh(requirement)

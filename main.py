@@ -16,6 +16,7 @@ from core.config import (
 from routes.authentication_routes import auth_router
 from routes.feed_formulation_routes import feed_formulation_router
 from routes.ingredient_routes import ingredient_router
+from routes.licensing_routes import admin_licensing_router, licensing_router
 from routes.nutrient_requirements_routes import nutrient_requirements_router
 from routes.root_routes import root_router
 
@@ -29,11 +30,18 @@ ingredient and nutrient data, and store formulation results per authenticated us
 ## Authentication
 
 1. Register with `/auth/register`.
-2. Log in with `/auth/login`.
+2. Log in with `/auth/login`, supplying the installation UUID, device name, and type.
 3. When OTP is enabled, submit the returned session token and OTP to
    `/auth/verify-otp`.
 4. Select **Authorize** and paste the access token. Swagger UI adds the
    `Bearer` authentication scheme automatically.
+
+## Licensing
+
+New accounts receive one 14-day Starter trial on their first registered device.
+Paid Starter, Premium, and Ultra licenses are annual and assigned to one device.
+Business endpoints require an active device entitlement; account, licensing, and
+referral endpoints remain available after expiration.
 
 ## Ownership
 
@@ -66,6 +74,8 @@ register_exception_handlers(app)
 
 app.include_router(root_router, prefix=API_PREFIX)
 app.include_router(auth_router, prefix=API_PREFIX)
+app.include_router(licensing_router, prefix=API_PREFIX)
+app.include_router(admin_licensing_router, prefix=API_PREFIX)
 app.include_router(feed_formulation_router, prefix=API_PREFIX)
 app.include_router(ingredient_router, prefix=API_PREFIX)
 app.include_router(nutrient_requirements_router, prefix=API_PREFIX)

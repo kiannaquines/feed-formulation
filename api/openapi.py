@@ -13,6 +13,20 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "Licensing",
+        "description": (
+            "Inspect per-device plans, current entitlement and quota usage, registered "
+            "devices, and referral rewards."
+        ),
+    },
+    {
+        "name": "License Administration",
+        "description": (
+            "Superuser-only offline payment activation, renewal, revocation, and "
+            "same-account device reassignment."
+        ),
+    },
+    {
         "name": "Feed Formulation",
         "description": (
             "Calculate least-cost feed formulations and manage the authenticated "
