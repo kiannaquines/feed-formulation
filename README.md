@@ -72,6 +72,10 @@ from the current latest snapshot. Existing list routes return latest versions on
 the corresponding `/versions` GET route returns history newest first. The legacy
 PUT update path remains available as a deprecated append-only alias.
 
+`PUT /api/v1/feed/formulation/edit/{formulation_id}` edits the selected saved
+formulation in place without changing its ID or version number. Use the `/versions`
+endpoint instead when the previous formulation contents must remain in history.
+
 ## Prerequisites
 
 - Python 3.12

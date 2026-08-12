@@ -107,6 +107,26 @@ def remove_formulation(
     return service.delete(formulation_id, auth_user["user_id"])
 
 
+@feed_formulation_router.put(
+    "/feed/formulation/edit/{formulation_id}",
+    response_model=FeedFormulationUpdateResponse,
+    status_code=status.HTTP_200_OK,
+    summary="Edit a saved formulation",
+    description=(
+        "Replace the name, description, and payload of the selected formulation "
+        "without creating a new version. Ownership is derived from the Bearer token."
+    ),
+    responses={**OWNED_RESOURCE_RESPONSES, **VALIDATION_RESPONSE},
+)
+def edit_formulation(
+    formulation_id: int,
+    payload: FeedFormulationWithPayloadRequest,
+    auth_user: dict = Depends(get_licensed_user),
+    service: FeedFormulationService = Depends(get_feed_formulation_service),
+):
+    return service.edit(formulation_id, payload, auth_user["user_id"])
+
+
 @feed_formulation_router.post(
     "/feed/formulation/{formulation_id}/versions",
     response_model=FeedFormulationUpdateResponse,

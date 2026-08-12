@@ -78,6 +78,50 @@ def test_formulation_updates_create_immutable_versions_and_reject_stale_edits(
     assert stored_version_one.payload == {"revision": 1}
 
 
+def test_edit_formulation_updates_selected_version_in_place(
+    client, db_session, user_factory
+):
+    owner = user_factory("edit-owner")
+    formulation = save_formulation(client, owner, "Before edit")
+
+    response = client.put(
+        f"/api/v1/feed/formulation/edit/{formulation['id']}",
+        json=formulation_payload("After edit", 2),
+        headers=auth_header(owner),
+    )
+    edited = response.json()["formulation"]
+    db_session.expire_all()
+    stored = db_session.get(FeedFormulation, formulation["id"])
+
+    assert response.status_code == 200
+    assert response.json()["message"] == "Formulation edited successfully."
+    assert edited["id"] == formulation["id"]
+    assert edited["series_id"] == formulation["series_id"]
+    assert edited["version_number"] == formulation["version_number"]
+    assert edited["formulation_name"] == "After edit"
+    assert edited["payload"] == {"revision": 2}
+    assert stored.formulation_name == "After edit"
+    assert stored.formulation_description == "Revision 2"
+    assert stored.payload == {"revision": 2}
+
+
+def test_edit_formulation_enforces_ownership(client, user_factory):
+    owner = user_factory("edit-private-owner")
+    other = user_factory("edit-private-other")
+    formulation = save_formulation(client, owner, "Private formulation")
+
+    response = client.put(
+        f"/api/v1/feed/formulation/edit/{formulation['id']}",
+        json=formulation_payload("Unauthorized edit", 2),
+        headers=auth_header(other),
+    )
+
+    assert response.status_code == 403
+    assert response.json() == {
+        "detail": "You are not allowed to modify this formulation"
+    }
+
+
 def test_deleting_one_version_rewires_history_and_never_reuses_numbers(
     client, db_session, user_factory
 ):

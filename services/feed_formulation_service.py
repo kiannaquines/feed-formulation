@@ -38,6 +38,25 @@ class FeedFormulationService:
     def list_for_user(self, user_id: int) -> list[FeedFormulation]:
         return self._read(lambda: self.formulations.list_by_user(user_id))
 
+    def edit(
+        self,
+        formulation_id: int,
+        data: FeedFormulationWithPayloadRequest,
+        user_id: int,
+    ) -> dict:
+        formulation = self._read(
+            lambda: self.formulations.get_by_id(formulation_id)
+        )
+        require_mutable_owner(formulation, user_id, "Formulation")
+        for key, value in data.model_dump().items():
+            setattr(formulation, key, value)
+        self._commit()
+        self.db.refresh(formulation)
+        return {
+            "message": "Formulation edited successfully.",
+            "formulation": formulation,
+        }
+
     def create_version(
         self,
         formulation_id: int,
