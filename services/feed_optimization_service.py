@@ -2,11 +2,21 @@ import numpy as np
 from scipy.optimize import linprog
 
 from core.exceptions import OptimizationError, ValidationError
+from schema.feed_v3 import FeedFormulationV3Request
 from schema.schema import FeedFormulationRequest
 
 
 class FeedOptimizationService:
-    def formulate(self, request: FeedFormulationRequest) -> dict:
+    nutrient_fields = (
+        "protein_percent",
+        "energy_me",
+        "calcium_percent",
+        "phosphorus_percent",
+    )
+
+    def formulate(
+        self, request: FeedFormulationRequest | FeedFormulationV3Request
+    ) -> dict:
         if not request.ingredients:
             raise ValidationError("At least one ingredient must be provided")
 
@@ -16,18 +26,14 @@ class FeedOptimizationService:
         )
         nutrient_matrix = np.array(
             [
-                [ingredient.protein_percent for ingredient in request.ingredients],
-                [ingredient.energy_me for ingredient in request.ingredients],
-                [ingredient.calcium_percent for ingredient in request.ingredients],
-                [ingredient.phosphorus_percent for ingredient in request.ingredients],
+                [getattr(ingredient, name) for ingredient in request.ingredients]
+                for name in self.nutrient_fields
             ]
         )
         nutrient_targets = np.array(
             [
-                request.nutrient_requirements.protein_percent,
-                request.nutrient_requirements.energy_me,
-                request.nutrient_requirements.calcium_percent,
-                request.nutrient_requirements.phosphorus_percent,
+                getattr(request.nutrient_requirements, name)
+                for name in self.nutrient_fields
             ]
         )
         minimums = np.array(
@@ -110,31 +116,11 @@ class FeedOptimizationService:
                     for index in range(len(names))
                 ],
                 "nutrient_achievement": {
-                    "protein_percent": {
-                        "achieved": round(float(nutrient_values[0]), 4),
-                        "required": round(
-                            float(request.nutrient_requirements.protein_percent), 4
-                        ),
-                    },
-                    "energy_me": {
-                        "achieved": round(float(nutrient_values[1]), 4),
-                        "required": round(
-                            float(request.nutrient_requirements.energy_me), 4
-                        ),
-                    },
-                    "calcium_percent": {
-                        "achieved": round(float(nutrient_values[2]), 4),
-                        "required": round(
-                            float(request.nutrient_requirements.calcium_percent), 4
-                        ),
-                    },
-                    "phosphorus_percent": {
-                        "achieved": round(float(nutrient_values[3]), 4),
-                        "required": round(
-                            float(request.nutrient_requirements.phosphorus_percent),
-                            4,
-                        ),
-                    },
+                    name: {
+                        "achieved": round(float(nutrient_values[index]), 4),
+                        "required": round(float(nutrient_targets[index]), 4),
+                    }
+                    for index, name in enumerate(self.nutrient_fields)
                 },
                 "summary": {
                     "total_ingredient_percentage": round(
@@ -151,7 +137,9 @@ class FeedOptimizationService:
         return response
 
     @staticmethod
-    def _base_response(request: FeedFormulationRequest) -> dict:
+    def _base_response(
+        request: FeedFormulationRequest | FeedFormulationV3Request,
+    ) -> dict:
         return {
             "formulation_inputs": {
                 "total_ingredients": len(request.ingredients),

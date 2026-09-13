@@ -19,6 +19,7 @@ from core.config import (
 from routes.authentication_routes import auth_router
 from routes.feed_formulation_routes import feed_formulation_router
 from routes.feed_formulation_v2_routes import feed_formulation_v2_router
+from routes.feed_formulation_v3_routes import feed_formulation_v3_router
 from routes.ingredient_routes import ingredient_router
 from routes.licensing_routes import admin_licensing_router, licensing_router
 from routes.nutrient_requirements_routes import nutrient_requirements_router
@@ -61,6 +62,8 @@ the supplied nutrient targets, and each ingredient's minimum and maximum bounds.
 Percentages are submitted as decimals from `0` to `1` and returned as percentages.
 The original endpoint remains under `/api/v1`; `/v2/feed/formulate` adds bounded
 failure candidates and constraint diagnostics without changing V1 behavior.
+`/v3/feed/formulate` extends the calculation and diagnostics to ten nutrients.
+V3 nutrient percentages use percentage points, while ME uses kcal/kg.
 """,
     version="1.0.0",
     openapi_tags=OPENAPI_TAGS,
@@ -89,6 +92,7 @@ app.include_router(feed_formulation_router, prefix=API_PREFIX)
 app.include_router(ingredient_router, prefix=API_PREFIX)
 app.include_router(nutrient_requirements_router, prefix=API_PREFIX)
 app.include_router(feed_formulation_v2_router, prefix="/v2")
+app.include_router(feed_formulation_v3_router, prefix="/v3")
 
 _versioned_openapi_schemas: dict[str, dict] = {}
 
@@ -120,7 +124,10 @@ def openapi_v1() -> JSONResponse:
             prefix=API_PREFIX,
             title="FeedPrime API V1",
             version="1.0.0",
-            tags=[tag for tag in OPENAPI_TAGS if tag["name"] != "Feed Formulation V2"],
+            tags=[
+                tag for tag in OPENAPI_TAGS
+                if tag["name"] not in {"Feed Formulation V2", "Feed Formulation V3"}
+            ],
         )
     )
 
@@ -150,6 +157,26 @@ def docs_v2():
     return get_swagger_ui_html(
         openapi_url="/openapi/v2.json",
         title="FeedPrime API V2 - Swagger UI",
+    )
+
+
+@app.get("/openapi/v3.json", include_in_schema=False)
+def openapi_v3() -> JSONResponse:
+    return JSONResponse(
+        _versioned_openapi_schema(
+            prefix="/v3",
+            title="FeedPrime API V3",
+            version="3.0.0",
+            tags=[tag for tag in OPENAPI_TAGS if tag["name"] == "Feed Formulation V3"],
+        )
+    )
+
+
+@app.get("/docs/v3", include_in_schema=False)
+def docs_v3():
+    return get_swagger_ui_html(
+        openapi_url="/openapi/v3.json",
+        title="FeedPrime API V3 - Swagger UI",
     )
 
 if __name__ == "__main__":

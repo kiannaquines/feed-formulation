@@ -66,6 +66,41 @@ an explicit `null` changes that quota to unlimited.
 closest bounded candidate, per-ingredient bound statuses, and aggregate constraint
 diagnostics when the exact formulation is infeasible.
 
+`POST /v3/feed/formulate` adds ten-nutrient calculation and the same bounded
+failure diagnostics. It uses the same Bearer authentication and active device
+entitlement as V1/V2. Swagger documentation is at `/docs/v3`, with its isolated
+schema at `/openapi/v3.json`.
+
+Supply these fields in **every ingredient** and in `nutrient_requirements`:
+
+| Workbook nutrient | API field | Unit |
+| --- | --- | --- |
+| CP | `protein_percent` | % |
+| Cfat | `fat_percent` | % |
+| Cfiber | `fiber_percent` | % |
+| ME | `energy_me` | kcal/kg |
+| Calcium | `calcium_percent` | % |
+| Total P | `phosphorus_percent` | % |
+| Avail. P | `available_phosphorus_percent` | % |
+| Lysine | `lysine_percent` | % |
+| Met | `methionine_percent` | % |
+| M+C | `methionine_cystine_percent` | % |
+
+The mapping follows `Mulberry Leaf meal Feed Formulation.xls`, Sheet1 columns
+C, E, G, I, K, M, O, Q, S, and U. Percentages are percentage points (23 means
+23%), while ingredient `min_percentage` and `max_percentage` are fractions
+(0.1 means 10%). ME is energy, despite the `%ME` heading in some workbook tables.
+All ten compositions and targets are required, finite, and nonnegative; nutrient
+percentages cannot exceed 100. Use explicit zero only for known zero values.
+Blank workbook requirements are not imported as zero or invented as presets.
+
+V3 retains exact equality targets, a 100% mixture, and least-cost optimization.
+It does not introduce nutrient minimum/maximum ranges. Infeasible candidates
+respect ingredient bounds but may miss nutrient targets or the 100% total;
+check `status`, `failed_constraints`, and `constraint_diagnostics` before use.
+Existing ingredient/requirement CRUD schemas remain unchanged. Saved formulation
+payloads can already store V3 request/result JSON through the existing save API.
+
 Saved formulations use immutable snapshots. Saving creates version 1, and
 `POST /api/v1/feed/formulation/{formulation_id}/versions` creates the next version
 from the current latest snapshot. Existing list routes return latest versions only;

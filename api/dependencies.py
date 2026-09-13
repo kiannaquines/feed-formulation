@@ -19,6 +19,7 @@ from services import (
     FeedFormulationService,
     FeedOptimizationService,
     FeedOptimizationV2Service,
+    FeedOptimizationV3Service,
     IngredientService,
     LicensingService,
     NutrientRequirementService,
@@ -108,3 +109,7 @@ def get_feed_optimization_service() -> FeedOptimizationService:
 
 def get_feed_optimization_v2_service() -> FeedOptimizationV2Service:
     return FeedOptimizationV2Service()
+
+
+def get_feed_optimization_v3_service() -> FeedOptimizationV3Service:
+    return FeedOptimizationV3Service()

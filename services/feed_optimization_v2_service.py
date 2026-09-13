@@ -2,6 +2,7 @@ import numpy as np
 from scipy.optimize import linprog
 
 from core.exceptions import OptimizationError
+from schema.feed_v3 import FeedFormulationV3Request
 from schema.schema import FeedFormulationRequest
 from services.feed_optimization_service import FeedOptimizationService
 
@@ -15,7 +16,9 @@ class FeedOptimizationV2Service:
     def __init__(self, primary_solver: FeedOptimizationService | None = None):
         self.primary_solver = primary_solver or FeedOptimizationService()
 
-    def formulate(self, request: FeedFormulationRequest) -> dict:
+    def formulate(
+        self, request: FeedFormulationRequest | FeedFormulationV3Request
+    ) -> dict:
         response = self.primary_solver.formulate(request)
         if response["status"] == "success":
             return response
@@ -25,20 +28,15 @@ class FeedOptimizationV2Service:
         return response
 
     def _closest_bounded_formulation(
-        self, request: FeedFormulationRequest
+        self, request: FeedFormulationRequest | FeedFormulationV3Request
     ) -> dict:
         costs = np.array(
             [ingredient.cost_per_kg for ingredient in request.ingredients]
         )
         nutrient_matrix = np.array(
             [
-                [ingredient.protein_percent for ingredient in request.ingredients],
-                [ingredient.energy_me for ingredient in request.ingredients],
-                [ingredient.calcium_percent for ingredient in request.ingredients],
-                [
-                    ingredient.phosphorus_percent
-                    for ingredient in request.ingredients
-                ],
+                [getattr(ingredient, name) for ingredient in request.ingredients]
+                for name in self.primary_solver.nutrient_fields
             ]
         )
         constraint_matrix = np.vstack(
@@ -47,10 +45,10 @@ class FeedOptimizationV2Service:
         targets = np.array(
             [
                 1.0,
-                request.nutrient_requirements.protein_percent,
-                request.nutrient_requirements.energy_me,
-                request.nutrient_requirements.calcium_percent,
-                request.nutrient_requirements.phosphorus_percent,
+                *[
+                    getattr(request.nutrient_requirements, name)
+                    for name in self.primary_solver.nutrient_fields
+                ],
             ]
         )
         minimums = np.array(
@@ -118,7 +116,9 @@ class FeedOptimizationV2Service:
         )
         percentages = solution[:ingredient_count]
         achieved = constraint_matrix @ percentages
-        diagnostics = self._constraint_diagnostics(achieved, targets)
+        diagnostics = self._constraint_diagnostics(
+            achieved, targets, self.primary_solver.nutrient_fields
+        )
 
         return {
             "ingredient_composition": self._ingredient_composition(
@@ -146,14 +146,13 @@ class FeedOptimizationV2Service:
 
     @staticmethod
     def _constraint_diagnostics(
-        achieved: np.ndarray, targets: np.ndarray
+        achieved: np.ndarray,
+        targets: np.ndarray,
+        nutrient_fields: tuple[str, ...] = FeedOptimizationService.nutrient_fields,
     ) -> dict[str, dict]:
         names = [
             "total_ingredient_percentage",
-            "protein_percent",
-            "energy_me",
-            "calcium_percent",
-            "phosphorus_percent",
+            *nutrient_fields,
         ]
         diagnostics = {}
         for index, name in enumerate(names):
@@ -177,7 +176,7 @@ class FeedOptimizationV2Service:
 
     @staticmethod
     def _ingredient_composition(
-        request: FeedFormulationRequest,
+        request: FeedFormulationRequest | FeedFormulationV3Request,
         percentages: np.ndarray,
         costs: np.ndarray,
     ) -> list[dict]:

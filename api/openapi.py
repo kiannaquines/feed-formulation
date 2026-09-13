@@ -51,6 +51,13 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "Feed Formulation V3",
+        "description": (
+            "Calculate exact ten-nutrient formulations with bounded failure "
+            "candidates and constraint diagnostics."
+        ),
+    },
+    {
         "name": "Ingredients",
         "description": (
             "Manage ingredient composition and pricing. Users can read their own "

@@ -303,6 +303,7 @@ def test_openapi_contains_detailed_operation_and_response_documentation(client):
         "Authentication",
         "Feed Formulation",
         "Feed Formulation V2",
+        "Feed Formulation V3",
         "Ingredients",
         "Nutrient Requirements",
         "Licensing",
