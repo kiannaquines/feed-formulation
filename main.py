@@ -23,6 +23,7 @@ from routes.feed_formulation_v3_routes import feed_formulation_v3_router
 from routes.ingredient_routes import ingredient_router
 from routes.licensing_routes import admin_licensing_router, licensing_router
 from routes.nutrient_requirements_routes import nutrient_requirements_router
+from routes.nutrient_requirements_v2_routes import nutrient_requirements_v2_router
 from routes.pricing_routes import admin_pricing_router, pricing_router
 from routes.root_routes import root_router
 
@@ -92,6 +93,7 @@ app.include_router(feed_formulation_router, prefix=API_PREFIX)
 app.include_router(ingredient_router, prefix=API_PREFIX)
 app.include_router(nutrient_requirements_router, prefix=API_PREFIX)
 app.include_router(feed_formulation_v2_router, prefix="/v2")
+app.include_router(nutrient_requirements_v2_router, prefix="/v2")
 app.include_router(feed_formulation_v3_router, prefix="/v3")
 
 _versioned_openapi_schemas: dict[str, dict] = {}
@@ -139,7 +141,11 @@ def openapi_v2() -> JSONResponse:
             prefix="/v2",
             title="FeedPrime API V2",
             version="2.0.0",
-            tags=[tag for tag in OPENAPI_TAGS if tag["name"] == "Feed Formulation V2"],
+            tags=[
+                tag
+                for tag in OPENAPI_TAGS
+                if tag["name"] in {"Feed Formulation V2", "Nutrient Requirements V2"}
+            ],
         )
     )
 

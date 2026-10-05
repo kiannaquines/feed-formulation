@@ -58,6 +58,12 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "Nutrient Requirements V2",
+        "description": (
+            "Create named nutrient targets using the V3 ten-nutrient composition."
+        ),
+    },
+    {
         "name": "Ingredients",
         "description": (
             "Manage ingredient composition and pricing. Users can read their own "

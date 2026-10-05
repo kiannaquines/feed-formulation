@@ -57,3 +57,36 @@ class NutrientAchievementV3Response(BaseModel):
 
 class OptimizationV3SuccessResponse(OptimizationSuccessResponse):
     nutrient_achievement: NutrientAchievementV3Response
+
+
+class NutrientRequirementV2Create(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+        json_schema_extra={
+            "example": {
+                "nutrient_requirement_name": "Standard Layer Diet",
+                "nutrient_requirement_description": "A balanced diet for laying hens.",
+                "composition": {
+                    "protein_percent": 16.0,
+                    "fat_percent": 4.0,
+                    "fiber_percent": 5.0,
+                    "energy_me": 2800,
+                    "calcium_percent": 3.5,
+                    "phosphorus_percent": 0.65,
+                    "available_phosphorus_percent": 0.45,
+                    "lysine_percent": 0.75,
+                    "methionine_percent": 0.35,
+                    "methionine_cystine_percent": 0.6,
+                },
+            },
+        },
+    )
+
+    nutrient_requirement_name: str
+    nutrient_requirement_description: str
+    composition: NutrientsV3
+
+
+class NutrientRequirementV2CreateResponse(BaseModel):
+    detail: str
+    nutrient_info: NutrientRequirementV2Create
