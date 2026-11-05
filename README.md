@@ -2,6 +2,29 @@
 
 FastAPI service for feed formulation, ingredient and nutrient management, and authenticated formulation storage.
 
+## Quick start
+
+Requires Python 3.12 and OpenSSL. The default configuration uses a local SQLite
+database at `app_database.db`.
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+cp -n .env.example .env
+openssl rand -hex 32
+```
+
+Put the generated value in `.env` as `JWT_SECRET_KEY`, then run:
+
+```bash
+python -m alembic upgrade head
+fastapi dev main.py
+```
+
+The combined API documentation is at `http://127.0.0.1:8000/docs`. Versioned
+documentation is at `/docs/v1`, `/docs/v2`, `/docs/v3`, and `/docs/v4`.
+
 ## Licensing
 
 New accounts receive one 14-day Starter trial. Registration requires a persistent
@@ -61,17 +84,19 @@ an explicit `null` changes that quota to unlimited.
 
 ## Formulation API versions
 
-`POST /api/v1/feed/formulate` remains the original exact solver. The separate
-`POST /v2/feed/formulate` endpoint uses the same primary calculation but adds a
-closest bounded candidate, per-ingredient bound statuses, and aggregate constraint
-diagnostics when the exact formulation is infeasible.
+All formulation endpoints require a Bearer token and an active device license.
+They minimize cost for a 100% mixture within ingredient inclusion bounds.
 
-`POST /v3/feed/formulate` adds ten-nutrient calculation and the same bounded
-failure diagnostics. It uses the same Bearer authentication and active device
-entitlement as V1/V2. Swagger documentation is at `/docs/v3`, with its isolated
-schema at `/openapi/v3.json`.
+| Version | Endpoint | Nutrients | Infeasible result |
+| --- | --- | --- | --- |
+| V1 | `POST /api/v1/feed/formulate` | Four fixed fields | Failure details |
+| V2 | `POST /v2/feed/formulate` | Four fixed fields | Bounded candidate and diagnostics |
+| V3 | `POST /v3/feed/formulate` | Ten fixed fields | Bounded candidate and diagnostics |
+| V4 | `POST /v4/feed/formulate` | Names chosen per request | Bounded candidate and diagnostics |
 
-Supply these fields in **every ingredient** and in `nutrient_requirements`:
+### V3 nutrient fields
+
+V3 requires these fields in **every ingredient** and in `nutrient_requirements`:
 
 | Workbook nutrient | API field | Unit |
 | --- | --- | --- |
@@ -94,12 +119,11 @@ All ten compositions and targets are required, finite, and nonnegative; nutrient
 percentages cannot exceed 100. Use explicit zero only for known zero values.
 Blank workbook requirements are not imported as zero or invented as presets.
 
-V3 retains exact equality targets, a 100% mixture, and least-cost optimization.
-It does not introduce nutrient minimum/maximum ranges. Infeasible candidates
-respect ingredient bounds but may miss nutrient targets or the 100% total;
-check `status`, `failed_constraints`, and `constraint_diagnostics` before use.
-Existing ingredient/requirement CRUD schemas remain unchanged. Saved formulation
-payloads can already store V3 request/result JSON through the existing save API.
+V3 uses exact nutrient targets, not minimum/maximum ranges. Infeasible candidates
+respect ingredient bounds but may miss nutrient targets or the 100% total. Check
+`status`, `failed_constraints`, and `constraint_diagnostics` before using one.
+
+### V4 dynamic nutrients
 
 `POST /v4/feed/formulate` selects nutrients by name in each request. Each ingredient
 has a `nutrients` object; every targeted nutrient must be present in every
@@ -119,20 +143,25 @@ diagnostics. It accepts inline ingredients:
 }
 ```
 
-V4 saved ingredients use a JSON `composition` instead of nutrient columns.
-`/v4/ingredients/all`, `/create`, `/update/{ingredient_id}`, and
-`/delete/{ingredient_id}` manage these records with the existing licensing and
-ownership rules. The migration copies all ten existing ingredient values into
-JSON in one Alembic revision, then removes the old columns in the next. The V1
-ingredient API retains its fixed request and response fields through a
-compatibility mapping; its list omits
-V4-only records that lack those ten fields. Formulation V1–V3 requests and saved
-formulation snapshots keep their current formats. V4 Swagger documentation is at
-`/docs/v4`, with its isolated schema at `/openapi/v4.json`.
+V4 saves ingredient nutrients in the JSON `composition` column. Its ingredient
+endpoints are `GET /v4/ingredients/all`, `POST /v4/ingredients/create`,
+`PUT /v4/ingredients/update/{ingredient_id}`, and
+`DELETE /v4/ingredients/delete/{ingredient_id}`. They retain the existing
+licensing and ownership rules. A create request can use
+`{"name":"Corn","price":2,"composition":{"selenium_mg_kg":1}}`.
 
-Saved formulations use immutable snapshots. Saving creates version 1, and
+The two V4 Alembic revisions backfill JSON from the ten former nutrient columns,
+then remove those columns. The V1 ingredient API keeps its fixed request and
+response fields through a compatibility mapping; its list omits V4-only rows
+that lack those fields. V1–V3 formulation requests and saved formulation payloads
+keep their formats. V4 Swagger documentation is at `/docs/v4`, with its isolated
+schema at `/openapi/v4.json`.
+
+## Saved formulations
+
+Saving a formulation creates version 1, and
 `POST /api/v1/feed/formulation/{formulation_id}/versions` creates the next version
-from the current latest snapshot. Existing list routes return latest versions only;
+from the current latest snapshot. List routes return latest versions only;
 the corresponding `/versions` GET route returns history newest first. The legacy
 PUT update path remains available as a deprecated append-only alias.
 
@@ -140,109 +169,31 @@ PUT update path remains available as a deprecated append-only alias.
 formulation in place without changing its ID or version number. Use the `/versions`
 endpoint instead when the previous formulation contents must remain in history.
 
-## Prerequisites
+## PostgreSQL (optional)
 
-- Python 3.12
-- OpenSSL
-- PostgreSQL 18
-
-## Setup
-
-Create and activate the virtual environment:
-
-```bash
-python3.12 -m venv env
-source env/bin/activate
-```
-
-Install runtime and development dependencies:
-
-```bash
-python -m pip install -r requirements-dev.txt
-```
-
-Install and start PostgreSQL 18 on macOS:
+For PostgreSQL 18 on macOS, install the server and create an application role and
+databases. Use a generated password when `createuser` prompts for one:
 
 ```bash
 brew install postgresql@18
 brew services start postgresql@18
-```
-
-Create the application role and databases. Use a generated password when
-`createuser` prompts for one:
-
-```bash
 /opt/homebrew/opt/postgresql@18/bin/createuser --login --pwprompt feedprime_app
 /opt/homebrew/opt/postgresql@18/bin/createdb --owner=feedprime_app feedprime
 /opt/homebrew/opt/postgresql@18/bin/createdb --owner=feedprime_app feedprime_test
 ```
 
-Create the local configuration:
-
-```bash
-cp .env.example .env
-openssl rand -hex 32
-```
-
-Copy the generated OpenSSL value into `.env`:
-
-```dotenv
-DATABASE_URL=postgresql+psycopg://feedprime_app:<database-password>@localhost:5432/feedprime
-JWT_SECRET_KEY=<generated-value>
-```
-
-The application requires `DATABASE_URL` and rejects missing, placeholder, or
-shorter-than-32-character JWT secrets.
-
-Apply the database migrations:
-
-```bash
-alembic upgrade head
-```
-
-### Migrate the existing SQLite data
-
-Stop the API and create a consistent backup before migrating:
-
-```bash
-sqlite3 app_database.db ".backup 'app_database.sqlite.backup'"
-```
-
-After the PostgreSQL schema is upgraded, run the transfer first as a dry run and
-then explicitly apply it:
-
-```bash
-python scripts/migrate_sqlite_to_postgres.py
-python scripts/migrate_sqlite_to_postgres.py --apply
-```
-
-The migration refuses a non-empty PostgreSQL target, copies all rows in one
-transaction, resets identity sequences, and compares every copied value. Keep the
-SQLite database and backup until PostgreSQL has been verified. To roll back, stop
-the API and restore the previous SQLite `DATABASE_URL`.
-
-## Run
-
-```bash
-fastapi dev main.py
-```
-
-The combined API documentation is available at `http://127.0.0.1:8000/docs`.
-Version-specific Swagger documentation is available at
-`http://127.0.0.1:8000/docs/v1` and `http://127.0.0.1:8000/docs/v2`.
+In `.env`, comment out the SQLite `DATABASE_URL` and uncomment the PostgreSQL
+example with your password. Run `python -m alembic upgrade head` against the new
+database. The historical `scripts/migrate_sqlite_to_postgres.py` requires the
+pre-V4 revision `f8b2c6d41e73` and cannot transfer a current V4 database.
 
 ## Test
 
 ```bash
-pytest -q
+python -m pytest -q
 ```
 
-The default suite uses isolated SQLite databases. Run the same suite plus the
-PostgreSQL migration and concurrency integration tests with:
-
-```bash
-TEST_DATABASE_URL=postgresql+psycopg://feedprime_app:<database-password>@localhost:5432/feedprime_test pytest -q
-```
-
-The PostgreSQL integration fixture refuses any database not named
-`feedprime_test` before resetting its schema.
+The default suite uses isolated SQLite databases. To include PostgreSQL
+migration and concurrency tests, set `TEST_DATABASE_URL` to a dedicated database
+named `feedprime_test`, then run `python -m pytest -q`. The integration fixture
+refuses other database names before resetting its schema.
