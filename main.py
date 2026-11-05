@@ -20,7 +20,9 @@ from routes.authentication_routes import auth_router
 from routes.feed_formulation_routes import feed_formulation_router
 from routes.feed_formulation_v2_routes import feed_formulation_v2_router
 from routes.feed_formulation_v3_routes import feed_formulation_v3_router
+from routes.feed_formulation_v4_routes import feed_formulation_v4_router
 from routes.ingredient_routes import ingredient_router
+from routes.ingredient_v4_routes import ingredient_v4_router
 from routes.licensing_routes import admin_licensing_router, licensing_router
 from routes.nutrient_requirements_routes import nutrient_requirements_router
 from routes.nutrient_requirements_v2_routes import nutrient_requirements_v2_router
@@ -65,6 +67,7 @@ The original endpoint remains under `/api/v1`; `/v2/feed/formulate` adds bounded
 failure candidates and constraint diagnostics without changing V1 behavior.
 `/v3/feed/formulate` extends the calculation and diagnostics to ten nutrients.
 V3 nutrient percentages use percentage points, while ME uses kcal/kg.
+`/v4/feed/formulate` accepts nutrient name/value maps chosen per request.
 """,
     version="1.0.0",
     openapi_tags=OPENAPI_TAGS,
@@ -95,6 +98,8 @@ app.include_router(nutrient_requirements_router, prefix=API_PREFIX)
 app.include_router(feed_formulation_v2_router, prefix="/v2")
 app.include_router(nutrient_requirements_v2_router, prefix="/v2")
 app.include_router(feed_formulation_v3_router, prefix="/v3")
+app.include_router(feed_formulation_v4_router, prefix="/v4")
+app.include_router(ingredient_v4_router, prefix="/v4")
 
 _versioned_openapi_schemas: dict[str, dict] = {}
 
@@ -128,7 +133,10 @@ def openapi_v1() -> JSONResponse:
             version="1.0.0",
             tags=[
                 tag for tag in OPENAPI_TAGS
-                if tag["name"] not in {"Feed Formulation V2", "Feed Formulation V3"}
+                if tag["name"] not in {
+                    "Feed Formulation V2", "Feed Formulation V3",
+                    "Feed Formulation V4", "Ingredients V4",
+                }
             ],
         )
     )
@@ -183,6 +191,29 @@ def docs_v3():
     return get_swagger_ui_html(
         openapi_url="/openapi/v3.json",
         title="FeedPrime API V3 - Swagger UI",
+    )
+
+
+@app.get("/openapi/v4.json", include_in_schema=False)
+def openapi_v4() -> JSONResponse:
+    return JSONResponse(
+        _versioned_openapi_schema(
+            prefix="/v4",
+            title="FeedPrime API V4",
+            version="4.0.0",
+            tags=[
+                tag for tag in OPENAPI_TAGS
+                if tag["name"] in {"Feed Formulation V4", "Ingredients V4"}
+            ],
+        )
+    )
+
+
+@app.get("/docs/v4", include_in_schema=False)
+def docs_v4():
+    return get_swagger_ui_html(
+        openapi_url="/openapi/v4.json",
+        title="FeedPrime API V4 - Swagger UI",
     )
 
 if __name__ == "__main__":

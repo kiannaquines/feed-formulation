@@ -101,6 +101,35 @@ check `status`, `failed_constraints`, and `constraint_diagnostics` before use.
 Existing ingredient/requirement CRUD schemas remain unchanged. Saved formulation
 payloads can already store V3 request/result JSON through the existing save API.
 
+`POST /v4/feed/formulate` selects nutrients by name in each request. Each ingredient
+has a `nutrients` object; every targeted nutrient must be present in every
+ingredient, including an explicit `0` for a known zero value. Other measured
+nutrients may be present and are ignored by that calculation. Values must use
+consistent units across ingredients and targets. V4 keeps V3's exact targets,
+100% mixture, inclusion bounds, least-cost optimization, and bounded failure
+diagnostics. It accepts inline ingredients:
+
+```json
+{
+  "ingredients": [
+    {"name": "Corn", "cost_per_kg": 2, "nutrients": {"selenium_mg_kg": 1}},
+    {"name": "Soybean", "cost_per_kg": 4, "nutrients": {"selenium_mg_kg": 3}}
+  ],
+  "nutrient_requirements": {"selenium_mg_kg": 1.5}
+}
+```
+
+V4 saved ingredients use a JSON `composition` instead of nutrient columns.
+`/v4/ingredients/all`, `/create`, `/update/{ingredient_id}`, and
+`/delete/{ingredient_id}` manage these records with the existing licensing and
+ownership rules. The migration copies all ten existing ingredient values into
+JSON in one Alembic revision, then removes the old columns in the next. The V1
+ingredient API retains its fixed request and response fields through a
+compatibility mapping; its list omits
+V4-only records that lack those ten fields. Formulation V1–V3 requests and saved
+formulation snapshots keep their current formats. V4 Swagger documentation is at
+`/docs/v4`, with its isolated schema at `/openapi/v4.json`.
+
 Saved formulations use immutable snapshots. Saving creates version 1, and
 `POST /api/v1/feed/formulation/{formulation_id}/versions` creates the next version
 from the current latest snapshot. Existing list routes return latest versions only;

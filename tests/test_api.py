@@ -75,7 +75,9 @@ def test_versioned_swagger_documents_isolate_api_routes(client):
 
     assert v2_document["info"]["title"] == "FeedPrime API V2"
     assert v2_document["info"]["version"] == "2.0.0"
-    assert set(v2_document["paths"]) == {"/v2/feed/formulate"}
+    assert set(v2_document["paths"]) == {
+        "/v2/feed/formulate", "/v2/nutrient-requirements/create",
+    }
     assert v1_docs.status_code == 200
     assert "/openapi/v1.json" in v1_docs.text
     assert v2_docs.status_code == 200
@@ -304,8 +306,11 @@ def test_openapi_contains_detailed_operation_and_response_documentation(client):
         "Feed Formulation",
         "Feed Formulation V2",
         "Feed Formulation V3",
+        "Feed Formulation V4",
         "Ingredients",
+        "Ingredients V4",
         "Nutrient Requirements",
+        "Nutrient Requirements V2",
         "Licensing",
         "License Administration",
         "Pricing",

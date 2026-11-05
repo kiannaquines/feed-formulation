@@ -58,6 +58,14 @@ OPENAPI_TAGS = [
         ),
     },
     {
+        "name": "Feed Formulation V4",
+        "description": "Optimize any selected nutrient names using dynamic ingredient compositions.",
+    },
+    {
+        "name": "Ingredients V4",
+        "description": "Manage ingredients whose nutrient compositions are JSON name/value maps.",
+    },
+    {
         "name": "Nutrient Requirements V2",
         "description": (
             "Create named nutrient targets using the V3 ten-nutrient composition."

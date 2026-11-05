@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from core.exceptions import ConflictError, PersistenceError
 from models.models import Ingredient
 from repositories import IngredientRepository
+from schema.feed_v4 import IngredientV4Create
 from schema.schema import IngredientCreate
 from services.licensing_service import LicensingService
 from services.ownership import require_mutable_owner
@@ -22,6 +23,22 @@ class IngredientService:
 
     def list_visible(self, user_id: int) -> dict:
         ingredients = self._read(lambda: self.ingredients.list_visible_to(user_id))
+        legacy_fields = set(IngredientCreate.model_fields) - {
+            "name", "price", "is_available",
+        }
+        ingredients = [
+            ingredient for ingredient in ingredients
+            if all(getattr(ingredient, field) is not None for field in legacy_fields)
+        ]
+        if not ingredients:
+            return {"detail": "Ingredients are currently empty"}
+        return {
+            "detail": f"Found {len(ingredients)} ingredients",
+            "ingredients": ingredients,
+        }
+
+    def list_visible_v4(self, user_id: int) -> dict:
+        ingredients = self._read(lambda: self.ingredients.list_visible_to(user_id))
         if not ingredients:
             return {"detail": "Ingredients are currently empty"}
         return {
@@ -30,7 +47,10 @@ class IngredientService:
         }
 
     def create(
-        self, data: IngredientCreate, user_id: int, device_id: int | None = None
+        self,
+        data: IngredientCreate | IngredientV4Create,
+        user_id: int,
+        device_id: int | None = None,
     ) -> Ingredient:
         if self.licensing and device_id is not None:
             self.licensing.require_quota(user_id, device_id, "ingredients")
@@ -40,7 +60,10 @@ class IngredientService:
         return ingredient
 
     def update(
-        self, ingredient_id: int, data: IngredientCreate, user_id: int
+        self,
+        ingredient_id: int,
+        data: IngredientCreate | IngredientV4Create,
+        user_id: int,
     ) -> Ingredient:
         ingredient = self._read(lambda: self.ingredients.get_by_id(ingredient_id))
         require_mutable_owner(ingredient, user_id, "Ingredient")

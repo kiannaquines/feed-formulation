@@ -172,7 +172,7 @@ def test_postgres_alembic_upgrade_reaches_head(postgres_engine):
     with postgres_engine.connect() as connection:
         revision = connection.scalar(text("SELECT version_num FROM alembic_version"))
 
-    assert revision == "f8b2c6d41e73"
+    assert revision == "5b7e0f3c9d24"
 
 
 def test_postgres_registration_email_login_and_health(postgres_engine):
