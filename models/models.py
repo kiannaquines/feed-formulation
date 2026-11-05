@@ -16,6 +16,19 @@ from datetime import datetime
 Base = declarative_base()
 
 
+class LegacyNutrient:
+    def __init__(self, name: str):
+        self.name = name
+
+    def __get__(self, ingredient, owner):
+        if ingredient is None:
+            return self
+        return (ingredient.composition or {}).get(self.name)
+
+    def __set__(self, ingredient, value):
+        ingredient.composition = {**(ingredient.composition or {}), self.name: value}
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -194,16 +207,17 @@ class Ingredient(Base):
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, index=True)
     price = Column(Float, nullable=False)
-    crude_protein = Column(Float, nullable=False)
-    crude_fat = Column(Float, nullable=False)
-    crude_fiber = Column(Float, nullable=False)
-    metabolized_energy = Column(Float, nullable=False)
-    calcium = Column(Float, nullable=False)
-    total_phosphorus = Column(Float, nullable=False)
-    avail_phosphorus = Column(Float, nullable=False)
-    lysine = Column(Float, nullable=False)
-    methionine = Column(Float, nullable=False)
-    m_c = Column(Float, nullable=False)
+    composition = Column(JSON, nullable=False, default=dict)
+    crude_protein = LegacyNutrient("protein_percent")
+    crude_fat = LegacyNutrient("fat_percent")
+    crude_fiber = LegacyNutrient("fiber_percent")
+    metabolized_energy = LegacyNutrient("energy_me")
+    calcium = LegacyNutrient("calcium_percent")
+    total_phosphorus = LegacyNutrient("phosphorus_percent")
+    avail_phosphorus = LegacyNutrient("available_phosphorus_percent")
+    lysine = LegacyNutrient("lysine_percent")
+    methionine = LegacyNutrient("methionine_percent")
+    m_c = LegacyNutrient("methionine_cystine_percent")
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     is_available = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)

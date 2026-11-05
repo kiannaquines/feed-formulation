@@ -1,4 +1,5 @@
 import os
+import json
 import subprocess
 import sys
 from datetime import datetime, timedelta
@@ -17,12 +18,12 @@ from models.models import Device, DeviceLicense, PricingPlan, PricingPlanVersion
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
 
-def run_alembic(database_url: str, revision: str) -> None:
+def run_alembic(database_url: str, revision: str, command: str = "upgrade") -> None:
     environment = os.environ.copy()
     environment["DATABASE_URL"] = database_url
     environment.setdefault("JWT_SECRET_KEY", "a" * 64)
     subprocess.run(
-        [sys.executable, "-m", "alembic", "upgrade", revision],
+        [sys.executable, "-m", "alembic", command, revision],
         cwd=REPOSITORY_ROOT,
         env=environment,
         check=True,
@@ -157,3 +158,101 @@ def test_legacy_user_upgrade_backfills_login_device_and_premium_price(tmp_path):
     assert active_snapshot_price == 35_000
     assert login.status_code == 200
     assert login.json()["token_type"] == "bearer"
+
+
+def test_ingredient_composition_migration_preserves_legacy_values(tmp_path):
+    database_url = f"sqlite:///{tmp_path / 'ingredient-upgrade.db'}"
+    run_alembic(database_url, "f8b2c6d41e73")
+    engine = create_engine(database_url)
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                """
+                INSERT INTO ingredients (
+                    name, price, crude_protein, crude_fat, crude_fiber,
+                    metabolized_energy, calcium, total_phosphorus,
+                    avail_phosphorus, lysine, methionine, m_c
+                ) VALUES (
+                    'Legacy feed', 2, 8, 3, 2, 3300, 0.1, 0.2, 0.1, 0.3, 0.2, 0.4
+                )
+                """
+            )
+        )
+
+    run_alembic(database_url, "4a6d9e2b8c13")
+    with engine.begin() as connection:
+        staged_composition = json.loads(
+            connection.scalar(text("SELECT composition FROM ingredients"))
+        )
+        staged_columns = {
+            row.name
+            for row in connection.execute(text("PRAGMA table_info(ingredients)"))
+        }
+    assert staged_composition["protein_percent"] == 8
+    assert "crude_protein" in staged_columns
+
+    run_alembic(database_url, "f8b2c6d41e73", "downgrade")
+    with engine.connect() as connection:
+        assert connection.scalar(text("SELECT crude_protein FROM ingredients")) == 8
+
+    run_alembic(database_url, "4a6d9e2b8c13")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO ingredients (name, price, composition) "
+                "VALUES ('Dynamic feed', 3, :composition)"
+            ),
+            {"composition": json.dumps({"selenium_mg_kg": 0.7})},
+        )
+
+    run_alembic(database_url, "head")
+    with engine.connect() as connection:
+        composition = json.loads(
+            connection.scalar(
+                text("SELECT composition FROM ingredients WHERE name = 'Legacy feed'")
+            )
+        )
+        dynamic_composition = json.loads(
+            connection.scalar(
+                text("SELECT composition FROM ingredients WHERE name = 'Dynamic feed'")
+            )
+        )
+        columns = {
+            row.name
+            for row in connection.execute(text("PRAGMA table_info(ingredients)"))
+        }
+    assert composition == {
+        "protein_percent": 8,
+        "fat_percent": 3,
+        "fiber_percent": 2,
+        "energy_me": 3300,
+        "calcium_percent": 0.1,
+        "phosphorus_percent": 0.2,
+        "available_phosphorus_percent": 0.1,
+        "lysine_percent": 0.3,
+        "methionine_percent": 0.2,
+        "methionine_cystine_percent": 0.4,
+    }
+    assert "composition" in columns
+    assert "crude_protein" not in columns
+    assert dynamic_composition == {"selenium_mg_kg": 0.7}
+
+    run_alembic(database_url, "4a6d9e2b8c13", "downgrade")
+    with engine.connect() as connection:
+        restored = connection.execute(
+            text(
+                "SELECT crude_protein, composition FROM ingredients "
+                "WHERE name = 'Legacy feed'"
+            )
+        ).one()
+        dynamic = connection.execute(
+            text(
+                "SELECT crude_protein, composition FROM ingredients "
+                "WHERE name = 'Dynamic feed'"
+            )
+        ).one()
+    assert restored.crude_protein == 8
+    assert json.loads(restored.composition) == composition
+    assert dynamic.crude_protein is None
+    assert json.loads(dynamic.composition) == dynamic_composition
+    engine.dispose()

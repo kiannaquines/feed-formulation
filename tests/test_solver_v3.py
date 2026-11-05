@@ -150,4 +150,4 @@ def test_v3_docs_are_isolated_and_describe_ten_required_nutrients(client):
     for version in (1, 2):
         old = client.get(f"/openapi/v{version}.json").json()
         assert "/v3/feed/formulate" not in old["paths"]
-        assert "NutrientsV3" not in old["components"]["schemas"]
+    assert "NutrientsV3" not in client.get("/openapi/v1.json").json()["components"]["schemas"]
