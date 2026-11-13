@@ -25,6 +25,27 @@ fastapi dev main.py
 The combined API documentation is at `http://127.0.0.1:8000/docs`. Versioned
 documentation is at `/docs/v1`, `/docs/v2`, `/docs/v3`, and `/docs/v4`.
 
+## React client
+
+The React client has a guided V4 formulation page for dynamic nutrient targets,
+custom or saved ingredients, calculation results, and saving successful formulas.
+An admin panel covers license activation, renewal, revocation, reassignment, and
+pricing version history and publishing. All API operations remain available in
+the endpoint workbench. The admin panel appears after a superuser signs in.
+
+With the API running on port 8000, start the client in another terminal:
+
+```bash
+cd client
+npm install
+npm run dev
+```
+
+Open `http://127.0.0.1:5173`. Vite proxies API requests to
+`http://127.0.0.1:8000` during development. Run `npm run build` in `client`
+to produce the production bundle in `client/dist`. For a separately hosted API,
+set `VITE_API_BASE_URL` to its origin when building the client.
+
 ## Licensing
 
 New accounts receive one 14-day Starter trial. Registration requires a persistent
